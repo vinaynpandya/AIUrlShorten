@@ -1,5 +1,23 @@
 # Architecture — URL Shortener
 
+```mermaid
+flowchart LR
+    Client["Browser / API Client"] --> Nginx["NGINX Load Balancer"]
+    Nginx --> App1["Spring Boot app1"]
+    Nginx --> App2["Spring Boot app2"]
+    App1 --> Redis[("Redis Cache")]
+    App2 --> Redis
+    App1 --> Postgres[("PostgreSQL")]
+    App2 --> Postgres
+```
+
+The diagram above is the implemented `docker-compose.yml` topology (`scalable`
+Spring profile): NGINX load-balances across two stateless application
+instances that share a single Redis cache and a single PostgreSQL database,
+so either instance can serve any request. Section 14 describes this
+deployment in detail; Section 1 below describes the single-instance
+prototype that each `app1`/`app2` container runs internally.
+
 ## 1. Prototype Architecture Overview
 
 The prototype is a single-instance Spring Boot application exposing a
@@ -134,16 +152,16 @@ This pushes the increment into the database's own atomic write path, so correctn
 
 ## 12. Prototype Architecture vs. Production-Scale Architecture
 
-| Concern | Prototype | Production |
-|---|---|---|
-| Database | Embedded H2 | PostgreSQL — durable storage, proven concurrent-write correctness |
-| Read path | Direct DB read per redirect | Redis read-through cache in front of the redirect path to reduce DB load |
-| AuthN/AuthZ | None (documented limitation) | API keys or OAuth2 for creation and analytics access |
-| Abuse protection | None | Rate limiting / quotas (per-IP or per-key) |
-| Click tracking | Synchronous atomic `UPDATE` per redirect | Async/event pipeline (queue + batch writer) if per-click history or high-volume analytics are needed |
-| Code generation at scale | Single-instance bounded retry | Distributed unique-code strategy (pre-allocated ranges or coordination service) to avoid collision-retry contention across instances |
-| Deployment | Single instance | Load-balanced multi-instance behind a reverse proxy/load balancer |
-| Observability | Actuator health/metrics, logs | Actuator + centralized metrics (e.g., Micrometer → Prometheus/Grafana), structured logging, tracing |
+| Concern | Prototype (default profile) | Production | Status |
+|---|---|---|---|
+| Database | Embedded H2 | PostgreSQL — durable storage, proven concurrent-write correctness | **Implemented** — `scalable` profile (Section 14) |
+| Read path | Direct DB read per redirect | Redis cache-aside in front of the redirect path to reduce DB load | **Implemented** — `scalable` profile (Section 14) |
+| Deployment | Single instance | Load-balanced multi-instance behind a reverse proxy/load balancer | **Implemented** — NGINX + `app1`/`app2` (Section 14) |
+| AuthN/AuthZ | None (documented limitation) | API keys or OAuth2 for creation and analytics access | Not implemented |
+| Abuse protection | None | Rate limiting / quotas (per-IP or per-key) | Not implemented |
+| Click tracking | Synchronous atomic `UPDATE` per redirect | Async/event pipeline (queue + batch writer) if per-click history or high-volume analytics are needed | Not implemented |
+| Code generation at scale | Single-instance bounded retry | Distributed unique-code strategy (pre-allocated ranges or coordination service) to avoid collision-retry contention across instances | Not implemented |
+| Observability | Actuator health/metrics, logs | Actuator + centralized metrics (e.g., Micrometer → Prometheus/Grafana), structured logging, tracing | Actuator only; no centralized metrics/tracing |
 
 ## 13. Component and Flow Diagram
 
@@ -248,9 +266,9 @@ The runnable prototype uses:
 
 A production implementation could evolve to:
 
-- PostgreSQL for durable relational persistence.
-- Redis cache for frequently accessed redirect mappings.
-- Multiple application instances behind a load balancer.
+- PostgreSQL for durable relational persistence. **Implemented** — see Section 14.
+- Redis cache for frequently accessed redirect mappings. **Implemented** — see Section 14.
+- Multiple application instances behind a load balancer. **Implemented** — see Section 14.
 - Rate limiting for URL creation and redirect endpoints.
 - Asynchronous analytics through Kafka.
 - Centralized logs, metrics and distributed tracing.
@@ -262,6 +280,69 @@ would be replaced by guaranteed ID allocation. Application instances could
 receive non-overlapping numeric ranges, Base62-encode those IDs and apply a
 reversible permutation to make public codes less predictable.
 
-Distributed ID allocation, Cassandra, DynamoDB, ZooKeeper, Redis, Kafka,
-sharding and CDN infrastructure are documented as production evolution and
-are intentionally not implemented in this prototype.
+Distributed ID allocation, Cassandra, DynamoDB, ZooKeeper, Kafka, sharding
+and CDN infrastructure remain documented as further production evolution
+and are intentionally not implemented. Redis, PostgreSQL, and multi-instance
+load balancing are implemented via the `scalable` Docker Compose profile
+(Section 14).
+
+## 14. Scalable Deployment (Docker Compose `scalable` Profile)
+
+The diagram at the top of this document reflects `docker-compose.yml`:
+
+| Component | Role |
+|---|---|
+| `nginx` | NGINX reverse proxy on port `8080`, load-balancing across `app1` and `app2` with `least_conn` and passive health checks (`max_fails=3 fail_timeout=10s`); forwards `Host`, `X-Real-IP`, `X-Forwarded-For`, `X-Forwarded-Proto`. |
+| `app1`, `app2` | Two instances of the same Spring Boot image, run under the `scalable` profile. Stateless — neither holds data the other doesn't also see, since both connect to the same `redis` and `postgres` containers. |
+| `redis` | Single shared Redis instance used as a cache-aside layer in front of the redirect path only (not creation or analytics). |
+| `postgres` | Single shared PostgreSQL instance — the source of truth for all reads/writes. |
+
+**Cache-aside redirect flow** (`UrlShortenerService.resolveOriginalUrl`,
+`app.cache.enabled=true` under the `scalable` profile via
+`RedisRedirectCache`):
+1. Look up the short code in Redis (`redirect:<shortCode>`). On a hit, issue
+   a conditional atomic `UPDATE` in PostgreSQL that only succeeds if the row
+   is still active and unexpired; if it succeeds, return the cached URL
+   without a read of the URL column. If it affects zero rows (the row
+   became inactive/expired since caching), evict the stale cache entry and
+   fall through to step 2.
+2. On a cache miss (or the fallthrough above), read from PostgreSQL,
+   applying the same active/expiry checks as the prototype path
+   (`404`/`410`).
+3. Increment the click count in PostgreSQL, populate the Redis entry with a
+   TTL of `min(app.cache.redirect-ttl, expiresAt)`, and return the URL.
+
+All Redis operations are wrapped to catch `DataAccessException`: a Redis
+outage degrades to direct PostgreSQL reads rather than failing the request.
+When `app.cache.enabled=false` (the prototype's default profile),
+`NoOpRedirectCache` is used instead and every request goes straight to
+PostgreSQL — this is how the same codebase runs identically in both the
+single-instance H2 prototype and the multi-instance PostgreSQL/Redis
+deployment.
+
+**Instance identification**: `InstanceHeaderFilter` sets an
+`X-App-Instance` response header from `app.instance-name`
+(`INSTANCE_NAME=app1`/`app2` in `docker-compose.yml`), letting a client
+verify NGINX is actually distributing requests across both instances.
+
+**Configuration**: `application-scalable.properties` sources
+`DB_URL`/`DB_USERNAME`/`DB_PASSWORD` and `REDIS_HOST`/`REDIS_PORT` from
+environment variables supplied by `docker-compose.yml` (in turn sourced
+from `.env`, using `.env.example` as the non-production placeholder
+template) — no credentials are hardcoded in the properties file or image.
+
+**Ports**: NGINX is the public entry point on `localhost:8080`. `app1` and
+`app2` are also directly reachable on `localhost:8081` and `localhost:8082`
+respectively, bypassing NGINX — useful for isolating instance-specific
+behavior during verification, but not the intended client-facing path.
+
+**Verified deployment behavior**: creating a URL through NGINX
+(`POST http://localhost:8080/api/v1/urls`) returned `HTTP 201`, served by
+`app1` (per the `X-App-Instance` response header); redirecting through
+NGINX (`GET http://localhost:8080/{shortCode}`) returned `HTTP 302`,
+served by `app2`. Because the code was created via `app1` and
+successfully resolved via `app2`, this confirms both NGINX load balancing
+across instances and shared PostgreSQL persistence between them. This is
+a functional-correctness check, not a performance or availability
+benchmark — no load, latency, or uptime figures have been measured for
+this deployment.

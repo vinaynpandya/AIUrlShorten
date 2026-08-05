@@ -157,3 +157,66 @@ identified route-collision risks and verified backward compatibility.
 ### Status
 
 Completed.
+
+## Scalable Deployment — PostgreSQL, Redis and NGINX
+
+### Intent
+
+Evolve the runnable prototype into a horizontally scaled deployment:
+PostgreSQL as the durable source of truth, an optional Redis cache-aside
+layer for redirects, two application instances, and an NGINX load
+balancer as the public entry point — without changing the application's
+existing request/response contract.
+
+### Task decomposition
+
+1. Add a `scalable` Spring profile configured for PostgreSQL and Redis.
+2. Implement a cache-aside redirect path (`RedisRedirectCache`) with a
+   `NoOpRedirectCache` fallback when caching is disabled.
+3. Add an `X-App-Instance` response header (`InstanceHeaderFilter`) to
+   identify the serving instance.
+4. Add `docker-compose.yml` services for `postgres`, `redis`, `app1`,
+   `app2`, and `nginx`.
+5. Configure NGINX as a load balancer across `app1`/`app2`.
+6. Manually verify request distribution and shared persistence.
+
+### AI contribution
+
+Claude assisted with the `RedisRedirectCache`/`NoOpRedirectCache`
+cache-aside implementation, the `InstanceHeaderFilter`, the
+`docker-compose.yml` service definitions, the NGINX load-balancer
+configuration, and documentation updates reflecting the implemented
+deployment.
+
+### Engineer decisions
+
+- Selected PostgreSQL and Redis for the `scalable` profile.
+- Required Redis to be optional, with PostgreSQL as the sole source of
+  truth.
+- Required the cache-aside pattern, not read-through/write-through.
+- Required NGINX as the single public entry point, with `app1`/`app2`
+  also directly reachable on `8081`/`8082` for diagnostics.
+- Required an `X-App-Instance` header for observability of
+  load-balancing behavior.
+
+### Engineer oversight
+
+- Reviewed the cache-aside fallback logic for correctness when Redis is
+  unavailable.
+- Confirmed the default (local) profile is unaffected — caching remains
+  disabled and H2 remains the database.
+- Performed manual verification of the deployed stack.
+
+### Validation
+
+- URL creation through NGINX returned HTTP 201, served by `app1`.
+- Redirect through NGINX returned HTTP 302, served by `app2`.
+- These results verified NGINX load balancing and shared PostgreSQL
+  persistence across instances.
+- No load, performance, or availability testing has been performed;
+  validation to date is functional/correctness verification only.
+
+### Status
+
+Completed (functional verification only; no performance or failover
+testing to date).

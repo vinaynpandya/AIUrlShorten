@@ -1,5 +1,6 @@
 package com.assignment.urlshortener.service;
 
+import com.assignment.urlshortener.cache.RedirectCache;
 import com.assignment.urlshortener.dto.CreateShortUrlRequest;
 import com.assignment.urlshortener.dto.CreateShortUrlResponse;
 import com.assignment.urlshortener.dto.UrlAnalyticsResponse;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -30,13 +32,16 @@ public class UrlShortenerService {
 
     private final ShortUrlRepository shortUrlRepository;
     private final ShortCodeGenerator shortCodeGenerator;
+    private final RedirectCache redirectCache;
     private final String baseUrl;
 
     public UrlShortenerService(ShortUrlRepository shortUrlRepository,
                                 ShortCodeGenerator shortCodeGenerator,
+                                RedirectCache redirectCache,
                                 @Value("${app.base-url}") String baseUrl) {
         this.shortUrlRepository = shortUrlRepository;
         this.shortCodeGenerator = shortCodeGenerator;
+        this.redirectCache = redirectCache;
         this.baseUrl = baseUrl;
     }
 
@@ -65,6 +70,15 @@ public class UrlShortenerService {
 
     @Transactional
     public String resolveOriginalUrl(String shortCode) {
+        Optional<String> cachedUrl = redirectCache.getOriginalUrl(shortCode);
+        if (cachedUrl.isPresent()) {
+            int updated = shortUrlRepository.incrementClickCount(shortCode, Instant.now());
+            if (updated == 1) {
+                return cachedUrl.get();
+            }
+            redirectCache.evict(shortCode);
+        }
+
         ShortUrl shortUrl = shortUrlRepository.findByShortCode(shortCode)
                 .filter(ShortUrl::isActive)
                 .orElseThrow(() -> {
@@ -78,6 +92,7 @@ public class UrlShortenerService {
         }
 
         shortUrlRepository.incrementClickCount(shortCode, Instant.now());
+        redirectCache.put(shortCode, shortUrl.getOriginalUrl(), shortUrl.getExpiresAt());
         return shortUrl.getOriginalUrl();
     }
 
