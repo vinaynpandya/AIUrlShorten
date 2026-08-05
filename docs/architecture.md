@@ -179,3 +179,89 @@ flowchart TD
     RC -->|302 Found| Client
     UC -->|200 OK analytics| Client
 ```
+## Short-Code Capacity and Uniqueness
+
+The prototype generates seven-character Base62 codes using the characters
+0-9, a-z and A-Z.
+
+A seven-character Base62 namespace contains:
+
+62^7 = approximately 3.52 trillion combinations.
+
+A large namespace reduces collision probability but does not guarantee
+uniqueness. The prototype therefore uses three safeguards:
+
+1. Check whether the generated code already exists.
+2. Retry generation up to five times.
+3. Enforce a unique database constraint as the final correctness guarantee.
+
+The repository existence check is an optimization. The database constraint
+is still required because concurrent requests could generate the same code
+between the existence check and persistence operation.
+
+Short codes are never recycled after expiration or deactivation. Reusing
+codes could cause old bookmarks, delayed requests, browser caches or
+historical analytics to refer to a different destination.
+
+## Redirect Decision
+
+The service returns HTTP 302 rather than HTTP 301.
+
+HTTP 302 was selected because:
+
+- Browsers are less likely to cache the redirect permanently.
+- Expiration remains enforceable.
+- Redirect requests continue reaching the service for analytics.
+- Future destination changes remain possible.
+
+## Analytics Trade-Off
+
+The prototype updates click analytics synchronously and atomically during
+the redirect request.
+
+Advantages:
+
+- Simple implementation.
+- Immediately consistent click counts.
+- Easy end-to-end validation.
+
+Limitations:
+
+- Analytics writes add latency to the redirect request.
+- Database write load increases with redirect traffic.
+- Analytics availability can affect redirect performance.
+
+In a production-scale system, the redirect service would publish a click
+event asynchronously to Kafka or another message broker. Analytics
+processing would then occur independently of redirect handling.
+
+## Prototype Versus Production Architecture
+
+The runnable prototype uses:
+
+- One modular Spring Boot application.
+- H2 database.
+- SecureRandom Base62 code generation.
+- Database uniqueness enforcement.
+- Synchronous click analytics.
+- Spring Boot Actuator health monitoring.
+
+A production implementation could evolve to:
+
+- PostgreSQL for durable relational persistence.
+- Redis cache for frequently accessed redirect mappings.
+- Multiple application instances behind a load balancer.
+- Rate limiting for URL creation and redirect endpoints.
+- Asynchronous analytics through Kafka.
+- Centralized logs, metrics and distributed tracing.
+- Read replicas or partitioned storage.
+- CDN or edge-based redirects for global latency reduction.
+
+At extremely large scale, random generation with database collision checks
+would be replaced by guaranteed ID allocation. Application instances could
+receive non-overlapping numeric ranges, Base62-encode those IDs and apply a
+reversible permutation to make public codes less predictable.
+
+Distributed ID allocation, Cassandra, DynamoDB, ZooKeeper, Redis, Kafka,
+sharding and CDN infrastructure are documented as production evolution and
+are intentionally not implemented in this prototype.
