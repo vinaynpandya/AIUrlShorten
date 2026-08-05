@@ -4,6 +4,7 @@ import com.assignment.urlshortener.dto.CreateShortUrlRequest;
 import com.assignment.urlshortener.dto.CreateShortUrlResponse;
 import com.assignment.urlshortener.dto.UrlAnalyticsResponse;
 import com.assignment.urlshortener.entity.ShortUrl;
+import com.assignment.urlshortener.exception.CustomAliasConflictException;
 import com.assignment.urlshortener.exception.ShortCodeGenerationException;
 import com.assignment.urlshortener.exception.ShortUrlExpiredException;
 import com.assignment.urlshortener.exception.ShortUrlNotFoundException;
@@ -12,16 +13,20 @@ import com.assignment.urlshortener.util.ShortCodeGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Set;
 
 @Service
 public class UrlShortenerService {
 
     private static final Logger log = LoggerFactory.getLogger(UrlShortenerService.class);
     private static final int MAX_GENERATION_ATTEMPTS = 5;
+    private static final Set<String> RESERVED_ALIASES = Set.of(
+            "api", "actuator", "health", "admin", "login", "logout", "docs", "swagger");
 
     private final ShortUrlRepository shortUrlRepository;
     private final ShortCodeGenerator shortCodeGenerator;
@@ -37,11 +42,21 @@ public class UrlShortenerService {
 
     @Transactional
     public CreateShortUrlResponse createShortUrl(CreateShortUrlRequest request) {
-        String shortCode = generateUniqueShortCode();
+        String shortCode = request.customAlias() != null
+                ? reserveCustomAlias(request.customAlias())
+                : generateUniqueShortCode();
         Instant createdAt = Instant.now();
 
         ShortUrl shortUrl = new ShortUrl(request.originalUrl(), shortCode, createdAt, request.expiresAt());
-        shortUrlRepository.save(shortUrl);
+        try {
+            shortUrlRepository.save(shortUrl);
+        } catch (DataIntegrityViolationException ex) {
+            if (request.customAlias() != null) {
+                log.warn("Custom alias conflict on save: {}", shortCode);
+                throw new CustomAliasConflictException(shortCode);
+            }
+            throw ex;
+        }
 
         log.info("Created short URL with code {}", shortCode);
         return new CreateShortUrlResponse(shortCode, buildShortUrl(shortCode), request.originalUrl(), createdAt,
@@ -83,6 +98,18 @@ public class UrlShortenerService {
                 shortUrl.isActive(),
                 shortUrl.getExpiresAt()
         );
+    }
+
+    private String reserveCustomAlias(String alias) {
+        if (RESERVED_ALIASES.contains(alias)) {
+            log.warn("Rejected reserved custom alias: {}", alias);
+            throw new CustomAliasConflictException(alias);
+        }
+        if (shortUrlRepository.existsByShortCode(alias)) {
+            log.warn("Custom alias already in use: {}", alias);
+            throw new CustomAliasConflictException(alias);
+        }
+        return alias;
     }
 
     private String generateUniqueShortCode() {

@@ -32,6 +32,12 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.GONE, ex.getMessage(), request.getRequestURI(), Map.of());
     }
 
+    @ExceptionHandler(CustomAliasConflictException.class)
+    public ResponseEntity<ApiErrorResponse> handleCustomAliasConflict(CustomAliasConflictException ex,
+                                                                         HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, ex.getMessage(), request.getRequestURI(), Map.of());
+    }
+
     @ExceptionHandler(ShortCodeGenerationException.class)
     public ResponseEntity<ApiErrorResponse> handleShortCodeGeneration(ShortCodeGenerationException ex,
                                                                         HttpServletRequest request) {

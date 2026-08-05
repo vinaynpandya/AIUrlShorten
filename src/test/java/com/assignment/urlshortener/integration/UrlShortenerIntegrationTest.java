@@ -42,7 +42,7 @@ class UrlShortenerIntegrationTest {
 
         MvcResult createResult = mockMvc.perform(post("/api/v1/urls")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new CreateShortUrlRequest(originalUrl, null))))
+                        .content(objectMapper.writeValueAsString(new CreateShortUrlRequest(originalUrl, null, null))))
                 .andExpect(status().isCreated())
                 .andReturn();
 
@@ -81,7 +81,7 @@ class UrlShortenerIntegrationTest {
         MvcResult createResult = mockMvc.perform(post("/api/v1/urls")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new CreateShortUrlRequest("https://example.com/expiring-page", expiresAt))))
+                                new CreateShortUrlRequest("https://example.com/expiring-page", expiresAt, null))))
                 .andExpect(status().isCreated())
                 .andReturn();
 
@@ -98,8 +98,61 @@ class UrlShortenerIntegrationTest {
         mockMvc.perform(post("/api/v1/urls")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new CreateShortUrlRequest("https://example.com/already-expired", expiresAt))))
+                                new CreateShortUrlRequest("https://example.com/already-expired", expiresAt, null))))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createShortUrlWithCustomAliasIsNormalizedAndRedirects() throws Exception {
+        String originalUrl = "https://example.com/custom-alias-page";
+
+        mockMvc.perform(post("/api/v1/urls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new CreateShortUrlRequest(originalUrl, null, "My-Custom-Alias"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.shortCode").value("my-custom-alias"));
+
+        mockMvc.perform(get("/{shortCode}", "my-custom-alias"))
+                .andExpect(status().isFound())
+                .andExpect(header().string(HttpHeaders.LOCATION, originalUrl));
+    }
+
+    @Test
+    void createShortUrlWithDuplicateCustomAliasReturnsConflict() throws Exception {
+        mockMvc.perform(post("/api/v1/urls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new CreateShortUrlRequest("https://example.com/first", null, "duplicate-alias"))))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/urls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new CreateShortUrlRequest("https://example.com/second", null, "duplicate-alias"))))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void createShortUrlWithReservedCustomAliasReturnsConflict() throws Exception {
+        mockMvc.perform(post("/api/v1/urls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new CreateShortUrlRequest("https://example.com/reserved", null, "admin"))))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void createShortUrlWithCustomAliasMatchingDeactivatedAliasReturnsConflict() throws Exception {
+        ShortUrl deactivated = new ShortUrl("https://example.com/old", "old-alias", Instant.now());
+        deactivated.deactivate();
+        shortUrlRepository.save(deactivated);
+
+        mockMvc.perform(post("/api/v1/urls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new CreateShortUrlRequest("https://example.com/new", null, "old-alias"))))
+                .andExpect(status().isConflict());
     }
 
     @Test

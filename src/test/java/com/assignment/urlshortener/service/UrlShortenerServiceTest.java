@@ -4,6 +4,7 @@ import com.assignment.urlshortener.dto.CreateShortUrlRequest;
 import com.assignment.urlshortener.dto.CreateShortUrlResponse;
 import com.assignment.urlshortener.dto.UrlAnalyticsResponse;
 import com.assignment.urlshortener.entity.ShortUrl;
+import com.assignment.urlshortener.exception.CustomAliasConflictException;
 import com.assignment.urlshortener.exception.ShortCodeGenerationException;
 import com.assignment.urlshortener.exception.ShortUrlExpiredException;
 import com.assignment.urlshortener.exception.ShortUrlNotFoundException;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -51,7 +53,7 @@ class UrlShortenerServiceTest {
         when(shortUrlRepository.existsByShortCode("abc1234")).thenReturn(false);
 
         CreateShortUrlResponse response =
-                urlShortenerService.createShortUrl(new CreateShortUrlRequest(originalUrl, null));
+                urlShortenerService.createShortUrl(new CreateShortUrlRequest(originalUrl, null, null));
 
         assertThat(response.shortCode()).isEqualTo("abc1234");
         assertThat(response.originalUrl()).isEqualTo(originalUrl);
@@ -68,7 +70,7 @@ class UrlShortenerServiceTest {
         when(shortUrlRepository.existsByShortCode("bbbbbbb")).thenReturn(false);
 
         CreateShortUrlResponse response =
-                urlShortenerService.createShortUrl(new CreateShortUrlRequest("https://example.com/retry", null));
+                urlShortenerService.createShortUrl(new CreateShortUrlRequest("https://example.com/retry", null, null));
 
         assertThat(response.shortCode()).isEqualTo("bbbbbbb");
         verify(shortCodeGenerator, times(2)).generate();
@@ -82,7 +84,7 @@ class UrlShortenerServiceTest {
 
         assertThrows(ShortCodeGenerationException.class,
                 () -> urlShortenerService.createShortUrl(
-                        new CreateShortUrlRequest("https://example.com/fail", null)));
+                        new CreateShortUrlRequest("https://example.com/fail", null, null)));
 
         verify(shortCodeGenerator, times(5)).generate();
         verify(shortUrlRepository, never()).save(any(ShortUrl.class));
@@ -95,10 +97,51 @@ class UrlShortenerServiceTest {
         when(shortUrlRepository.existsByShortCode("exp1234")).thenReturn(false);
 
         CreateShortUrlResponse response = urlShortenerService.createShortUrl(
-                new CreateShortUrlRequest("https://example.com/expiring", expiresAt));
+                new CreateShortUrlRequest("https://example.com/expiring", expiresAt, null));
 
         assertThat(response.expiresAt()).isEqualTo(expiresAt);
         verify(shortUrlRepository).save(any(ShortUrl.class));
+    }
+
+    @Test
+    void createShortUrlUsesCustomAliasWhenProvided() {
+        when(shortUrlRepository.existsByShortCode("my-alias")).thenReturn(false);
+
+        CreateShortUrlResponse response = urlShortenerService.createShortUrl(
+                new CreateShortUrlRequest("https://example.com/custom", null, "my-alias"));
+
+        assertThat(response.shortCode()).isEqualTo("my-alias");
+        assertThat(response.shortUrl()).isEqualTo("http://short.ly/my-alias");
+        verify(shortCodeGenerator, never()).generate();
+        verify(shortUrlRepository).save(any(ShortUrl.class));
+    }
+
+    @Test
+    void createShortUrlThrowsConflictWhenCustomAliasAlreadyExists() {
+        when(shortUrlRepository.existsByShortCode("taken")).thenReturn(true);
+
+        assertThrows(CustomAliasConflictException.class, () -> urlShortenerService.createShortUrl(
+                new CreateShortUrlRequest("https://example.com/dup", null, "taken")));
+
+        verify(shortUrlRepository, never()).save(any(ShortUrl.class));
+    }
+
+    @Test
+    void createShortUrlThrowsConflictWhenCustomAliasIsReserved() {
+        assertThrows(CustomAliasConflictException.class, () -> urlShortenerService.createShortUrl(
+                new CreateShortUrlRequest("https://example.com/reserved", null, "admin")));
+
+        verify(shortUrlRepository, never()).existsByShortCode(any());
+        verify(shortUrlRepository, never()).save(any(ShortUrl.class));
+    }
+
+    @Test
+    void createShortUrlThrowsConflictWhenCustomAliasRaceLosesOnSave() {
+        when(shortUrlRepository.existsByShortCode("race-alias")).thenReturn(false);
+        when(shortUrlRepository.save(any(ShortUrl.class))).thenThrow(new DataIntegrityViolationException("dup"));
+
+        assertThrows(CustomAliasConflictException.class, () -> urlShortenerService.createShortUrl(
+                new CreateShortUrlRequest("https://example.com/race", null, "race-alias")));
     }
 
     @Test

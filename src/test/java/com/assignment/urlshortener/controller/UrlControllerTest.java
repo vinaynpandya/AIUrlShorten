@@ -1,6 +1,7 @@
 package com.assignment.urlshortener.controller;
 
 import com.assignment.urlshortener.dto.CreateShortUrlResponse;
+import com.assignment.urlshortener.exception.CustomAliasConflictException;
 import com.assignment.urlshortener.exception.ShortUrlNotFoundException;
 import com.assignment.urlshortener.service.UrlShortenerService;
 import org.junit.jupiter.api.Test;
@@ -55,6 +56,32 @@ class UrlControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"originalUrl\":\"ftp://example.com/file\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createShortUrlWithTooShortCustomAliasReturnsBadRequest() throws Exception {
+        mockMvc.perform(post("/api/v1/urls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"originalUrl\":\"https://example.com/page\",\"customAlias\":\"ab\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createShortUrlWithInvalidCustomAliasCharactersReturnsBadRequest() throws Exception {
+        mockMvc.perform(post("/api/v1/urls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"originalUrl\":\"https://example.com/page\",\"customAlias\":\"bad alias!\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createShortUrlWithDuplicateCustomAliasReturnsConflict() throws Exception {
+        when(urlShortenerService.createShortUrl(any())).thenThrow(new CustomAliasConflictException("taken"));
+
+        mockMvc.perform(post("/api/v1/urls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"originalUrl\":\"https://example.com/page\",\"customAlias\":\"taken\"}"))
+                .andExpect(status().isConflict());
     }
 
     @Test
