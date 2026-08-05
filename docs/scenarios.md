@@ -311,3 +311,111 @@ Engineer is the sole authority on resolving the "memorable" ambiguity
 — AI's interpretation is a proposal, not a decision. Engineer approves
 the interpretation before any code is written, then reviews the
 resulting diff and tests as with the other scenarios.
+
+---
+
+## Scenario 4 — Brownfield: Scalable Deployment (PostgreSQL, Redis, NGINX)
+
+### Original Requirement
+Evolve the running prototype into a horizontally scaled deployment
+without changing its existing API contract.
+
+### Requirement Interpretation
+Add a `scalable` Spring profile and a Docker Compose stack: PostgreSQL
+as the durable source of truth, an optional Redis cache-aside layer in
+front of the redirect path, two application instances (`app1`, `app2`),
+and NGINX as the public load-balancing entry point. The default
+(local/H2) profile is left unchanged — this is additive, matching the
+brownfield constraint from Scenario 2.
+
+### Ambiguities and Assumptions
+- Redis is treated as optional infrastructure, not a second source of
+  truth: PostgreSQL remains authoritative, and a Redis outage or miss
+  falls back to a direct PostgreSQL read rather than failing the
+  request.
+- Caching applies to the redirect path only — URL creation and
+  analytics always read/write PostgreSQL directly, since those are
+  low-volume relative to redirects.
+- `app1`/`app2` are assumed stateless and interchangeable; nothing is
+  instance-local, so either can serve any request as long as both point
+  at the same `postgres`/`redis` containers.
+- Direct per-instance ports (`8081`, `8082`) are exposed for diagnostics
+  alongside NGINX (`8080`), not as an alternate client-facing path.
+
+### Task Decomposition
+1. `application-scalable.properties`: PostgreSQL and Redis connection
+   properties sourced from environment variables.
+2. `RedisRedirectCache` (cache-aside) and `NoOpRedirectCache` (disabled
+   default), selected by `app.cache.enabled`.
+3. `InstanceHeaderFilter`: sets `X-App-Instance` from
+   `app.instance-name` on every response.
+4. `docker-compose.yml`: `postgres`, `redis`, `app1`, `app2`, `nginx`
+   services, with `app1`/`app2` sharing the same `postgres`/`redis`.
+5. `infra/nginx/nginx.conf`: `least_conn` load balancing across
+   `app1:8080`/`app2:8080` with passive health checks.
+6. Manual verification of request distribution and shared persistence
+   through the deployed stack.
+
+### Task Dependencies and Sequence
+Profile/connection config → cache abstraction (interface + two
+implementations) → instance-identification filter → Compose service
+definitions → NGINX config → manual verification. The cache
+implementations must exist before Compose can wire
+`REDIS_HOST`/`REDIS_PORT` into a running container; NGINX config depends
+on both `app1` and `app2` already being defined as Compose services.
+
+### Expected Files or Modules Affected
+- `src/main/resources/application-scalable.properties` (new)
+- `src/main/java/.../cache/RedirectCache.java`,
+  `RedisRedirectCache.java`, `NoOpRedirectCache.java` (new)
+- `src/main/java/.../config/InstanceHeaderFilter.java` (new)
+- `docker-compose.yml`, `infra/nginx/nginx.conf`, `Dockerfile` (new)
+- `.env.example` (new, non-production placeholder credentials)
+
+No changes to `ShortUrlService`'s create/redirect/analytics business
+logic itself, aside from routing redirect reads through the cache-aside
+`RedirectCache` abstraction — the API contract (`201`/`302`/`404`/`409`/
+`410`) is unchanged.
+
+### Acceptance Criteria
+- URL creation and redirect through NGINX return the same status codes
+  as the default profile (`201`, `302`, `404`, `409`, `410`).
+- Requests are observably distributed across `app1`/`app2` (via
+  `X-App-Instance`).
+- A URL created via one instance is resolvable via the other, proving
+  shared PostgreSQL persistence.
+- The default profile's behavior and test suite are unaffected.
+
+### Risks and Failure Scenarios
+See `docs/risks-and-tradeoffs.md` ("Single-instance availability", "No
+distributed cache", "Concurrent insert race", "Synchronous analytics
+latency") for the full analysis of how this scenario changes — or
+leaves unchanged — each existing risk.
+
+### Testing and Validation
+- `./mvnw clean test`: full existing suite re-run to confirm no
+  regression in the default profile (this suite does not exercise
+  PostgreSQL/Redis/NGINX directly).
+- Manual, against the deployed `scalable` stack:
+  - URL creation through NGINX (`POST http://localhost:8080/api/v1/urls`)
+    returned `HTTP 201`, served by `app1`.
+  - Redirect through NGINX (`GET http://localhost:8080/{shortCode}`)
+    returned `HTTP 302`, served by `app2`.
+  - These two results verified NGINX load balancing and shared
+    PostgreSQL persistence across instances.
+- No load, performance, or availability (failover) testing has been
+  performed; validation to date is functional/correctness verification
+  only — see `docs/testing-strategy.md`.
+
+### AI Contribution
+AI proposed the cache-aside abstraction (interface plus enabled/disabled
+implementations) so the same codebase serves both profiles unchanged,
+implemented the Compose/NGINX configuration, and documented the
+resulting deployment; it did not propose or record any performance or
+availability figures beyond the functional checks the engineer directed.
+
+### Engineer Review and Approval Responsibility
+Engineer confirmed Redis should remain optional with PostgreSQL as sole
+source of truth, reviewed the cache-aside fallback logic for correctness
+under Redis unavailability, and performed the manual verification of the
+deployed stack recorded above.

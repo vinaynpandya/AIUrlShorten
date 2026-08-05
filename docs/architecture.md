@@ -330,3 +330,19 @@ verify NGINX is actually distributing requests across both instances.
 environment variables supplied by `docker-compose.yml` (in turn sourced
 from `.env`, using `.env.example` as the non-production placeholder
 template) — no credentials are hardcoded in the properties file or image.
+
+**Ports**: NGINX is the public entry point on `localhost:8080`. `app1` and
+`app2` are also directly reachable on `localhost:8081` and `localhost:8082`
+respectively, bypassing NGINX — useful for isolating instance-specific
+behavior during verification, but not the intended client-facing path.
+
+**Verified deployment behavior**: creating a URL through NGINX
+(`POST http://localhost:8080/api/v1/urls`) returned `HTTP 201`, served by
+`app1` (per the `X-App-Instance` response header); redirecting through
+NGINX (`GET http://localhost:8080/{shortCode}`) returned `HTTP 302`,
+served by `app2`. Because the code was created via `app1` and
+successfully resolved via `app2`, this confirms both NGINX load balancing
+across instances and shared PostgreSQL persistence between them. This is
+a functional-correctness check, not a performance or availability
+benchmark — no load, latency, or uptime figures have been measured for
+this deployment.
