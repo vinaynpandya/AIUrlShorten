@@ -108,3 +108,52 @@ generation.
 ### Status
 
 Completed.
+
+## Ambiguous Scenario — Memorable URLs
+
+### Original requirement
+
+Users should be able to create memorable short URLs.
+
+### Ambiguities identified
+
+- Whether memorable meant custom aliases.
+- Allowed characters.
+- Minimum and maximum length.
+- Case sensitivity.
+- Reserved routes.
+- Duplicate handling.
+- Reuse after expiration.
+
+### Approved interpretation
+
+- Memorable URLs are optional custom aliases.
+- Aliases contain letters, digits, hyphens or underscores.
+- Length is 4 to 30 characters.
+- Aliases are normalized to lowercase.
+- Duplicate aliases return HTTP 409.
+- Reserved application routes are rejected.
+- Aliases are never recycled.
+
+### AI contribution
+
+Claude assisted with ambiguity identification, implementation and tests.
+
+### Engineer oversight
+
+The engineer normalized the requirement, approved the validation rules,
+identified route-collision risks and verified backward compatibility.
+
+### Validation
+
+- Valid custom alias returned HTTP 201.
+- Alias redirect returned HTTP 302.
+- Case-insensitive duplicate returned HTTP 409.
+- Reserved alias returned HTTP 400.
+- Invalid characters returned HTTP 400.
+- Generated short codes continued working.
+- Full regression suite passed.
+
+### Status
+
+Completed.
