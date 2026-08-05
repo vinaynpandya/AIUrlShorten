@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>URL Shortener</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header class="app-header">
+  <h1>URL Shortener</h1>
+  <p class="subtitle">Shorten links, track clicks, check service health.</p>
+</header>
+
+<main class="container">
+
+  <section class="card" aria-labelledby="create-heading">
+    <h2 id="create-heading">Create a Short URL</h2>
+    <form id="create-form" novalidate>
+      <div class="field">
+        <label for="original-url">Original URL</label>
+        <input type="url" id="original-url" name="originalUrl" placeholder="https://example.com/some/long/path" required />
+        <p class="field-error" id="error-originalUrl"></p>
+      </div>
+
+      <div class="field">
+        <label for="custom-alias">Custom alias (optional)</label>
+        <input type="text" id="custom-alias" name="customAlias" placeholder="my-alias" />
+        <p class="field-error" id="error-customAlias"></p>
+      </div>
+
+      <div class="field">
+        <label for="expires-at">Expires at (optional)</label>
+        <input type="datetime-local" id="expires-at" name="expiresAt" />
+        <p class="field-error" id="error-expiresAt"></p>
+      </div>
+
+      <button type="submit" class="btn-primary">Create Short URL</button>
+    </form>
+
+    <p class="form-message" id="create-message" role="alert"></p>
+
+    <div class="result-panel" id="create-result" hidden>
+      <h3>Short URL Created</h3>
+      <div class="result-row">
+        <span class="result-label">Short URL</span>
+        <span class="result-value" id="result-shortUrl"></span>
+        <button type="button" class="btn-secondary" id="copy-button">Copy</button>
+        <a id="open-link" class="btn-secondary" href="#" target="_blank" rel="noopener noreferrer">Open</a>
+      </div>
+      <div class="result-row">
+        <span class="result-label">Short Code</span>
+        <span class="result-value" id="result-shortCode"></span>
+      </div>
+      <div class="result-row">
+        <span class="result-label">Created At</span>
+        <span class="result-value" id="result-createdAt"></span>
+      </div>
+      <div class="result-row">
+        <span class="result-label">Expires At</span>
+        <span class="result-value" id="result-expiresAt"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="analytics-heading">
+    <h2 id="analytics-heading">Link Analytics</h2>
+    <form id="analytics-form" novalidate>
+      <div class="field">
+        <label for="analytics-short-code">Short Code</label>
+        <input type="text" id="analytics-short-code" name="shortCode" placeholder="abc123" required />
+      </div>
+      <button type="submit" class="btn-primary">Look Up Analytics</button>
+    </form>
+
+    <p class="form-message" id="analytics-message" role="alert"></p>
+
+    <div class="result-panel" id="analytics-result" hidden>
+      <div class="result-row">
+        <span class="result-label">Original URL</span>
+        <span class="result-value" id="analytics-originalUrl"></span>
+      </div>
+      <div class="result-row">
+        <span class="result-label">Click Count</span>
+        <span class="result-value" id="analytics-clickCount"></span>
+      </div>
+      <div class="result-row">
+        <span class="result-label">Created At</span>
+        <span class="result-value" id="analytics-createdAt"></span>
+      </div>
+      <div class="result-row">
+        <span class="result-label">Last Accessed At</span>
+        <span class="result-value" id="analytics-lastAccessedAt"></span>
+      </div>
+      <div class="result-row">
+        <span class="result-label">Expires At</span>
+        <span class="result-value" id="analytics-expiresAt"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="health-heading">
+    <h2 id="health-heading">Service Health</h2>
+    <button type="button" class="btn-primary" id="health-check-button">Check Health</button>
+    <p class="form-message" id="health-message" role="alert"></p>
+    <div class="result-panel" id="health-result" hidden>
+      <div class="result-row">
+        <span class="result-label">Status</span>
+        <span class="result-value" id="health-status"></span>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
