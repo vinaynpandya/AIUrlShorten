@@ -5,6 +5,7 @@ import com.assignment.urlshortener.dto.CreateShortUrlResponse;
 import com.assignment.urlshortener.dto.UrlAnalyticsResponse;
 import com.assignment.urlshortener.entity.ShortUrl;
 import com.assignment.urlshortener.exception.ShortCodeGenerationException;
+import com.assignment.urlshortener.exception.ShortUrlExpiredException;
 import com.assignment.urlshortener.exception.ShortUrlNotFoundException;
 import com.assignment.urlshortener.repository.ShortUrlRepository;
 import com.assignment.urlshortener.util.ShortCodeGenerator;
@@ -39,11 +40,12 @@ public class UrlShortenerService {
         String shortCode = generateUniqueShortCode();
         Instant createdAt = Instant.now();
 
-        ShortUrl shortUrl = new ShortUrl(request.originalUrl(), shortCode, createdAt);
+        ShortUrl shortUrl = new ShortUrl(request.originalUrl(), shortCode, createdAt, request.expiresAt());
         shortUrlRepository.save(shortUrl);
 
         log.info("Created short URL with code {}", shortCode);
-        return new CreateShortUrlResponse(shortCode, buildShortUrl(shortCode), request.originalUrl(), createdAt);
+        return new CreateShortUrlResponse(shortCode, buildShortUrl(shortCode), request.originalUrl(), createdAt,
+                request.expiresAt());
     }
 
     @Transactional
@@ -54,6 +56,11 @@ public class UrlShortenerService {
                     log.warn("Short code not found or inactive: {}", shortCode);
                     return new ShortUrlNotFoundException(shortCode);
                 });
+
+        if (shortUrl.isExpired()) {
+            log.warn("Short code expired: {}", shortCode);
+            throw new ShortUrlExpiredException(shortCode);
+        }
 
         shortUrlRepository.incrementClickCount(shortCode, Instant.now());
         return shortUrl.getOriginalUrl();
@@ -73,7 +80,8 @@ public class UrlShortenerService {
                 shortUrl.getClickCount(),
                 shortUrl.getCreatedAt(),
                 shortUrl.getLastAccessedAt(),
-                shortUrl.isActive()
+                shortUrl.isActive(),
+                shortUrl.getExpiresAt()
         );
     }
 

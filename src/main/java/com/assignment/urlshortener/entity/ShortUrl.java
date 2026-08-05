@@ -34,14 +34,21 @@ public class ShortUrl {
     @Column(nullable = false)
     private boolean active = true;
 
+    private Instant expiresAt;
+
     protected ShortUrl() {
         // required by JPA
     }
 
     public ShortUrl(String originalUrl, String shortCode, Instant createdAt) {
+        this(originalUrl, shortCode, createdAt, null);
+    }
+
+    public ShortUrl(String originalUrl, String shortCode, Instant createdAt, Instant expiresAt) {
         this.originalUrl = originalUrl;
         this.shortCode = shortCode;
         this.createdAt = createdAt;
+        this.expiresAt = expiresAt;
     }
 
     public Long getId() {
@@ -70,6 +77,14 @@ public class ShortUrl {
 
     public boolean isActive() {
         return active;
+    }
+
+    public Instant getExpiresAt() {
+        return expiresAt;
+    }
+
+    public boolean isExpired() {
+        return expiresAt != null && Instant.now().isAfter(expiresAt);
     }
 
     public void recordAccess() {

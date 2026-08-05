@@ -32,7 +32,7 @@ class UrlControllerTest {
     @Test
     void createShortUrlWithValidRequestReturnsCreated() throws Exception {
         when(urlShortenerService.createShortUrl(any())).thenReturn(
-                new CreateShortUrlResponse("abc1234", "http://short.ly/abc1234", "https://example.com/page", Instant.now()));
+                new CreateShortUrlResponse("abc1234", "http://short.ly/abc1234", "https://example.com/page", Instant.now(), null));
 
         mockMvc.perform(post("/api/v1/urls")
                         .contentType(MediaType.APPLICATION_JSON)

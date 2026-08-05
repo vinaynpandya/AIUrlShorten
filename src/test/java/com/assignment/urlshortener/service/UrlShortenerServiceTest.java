@@ -5,6 +5,7 @@ import com.assignment.urlshortener.dto.CreateShortUrlResponse;
 import com.assignment.urlshortener.dto.UrlAnalyticsResponse;
 import com.assignment.urlshortener.entity.ShortUrl;
 import com.assignment.urlshortener.exception.ShortCodeGenerationException;
+import com.assignment.urlshortener.exception.ShortUrlExpiredException;
 import com.assignment.urlshortener.exception.ShortUrlNotFoundException;
 import com.assignment.urlshortener.repository.ShortUrlRepository;
 import com.assignment.urlshortener.util.ShortCodeGenerator;
@@ -20,6 +21,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -48,12 +50,14 @@ class UrlShortenerServiceTest {
         when(shortCodeGenerator.generate()).thenReturn("abc1234");
         when(shortUrlRepository.existsByShortCode("abc1234")).thenReturn(false);
 
-        CreateShortUrlResponse response = urlShortenerService.createShortUrl(new CreateShortUrlRequest(originalUrl));
+        CreateShortUrlResponse response =
+                urlShortenerService.createShortUrl(new CreateShortUrlRequest(originalUrl, null));
 
         assertThat(response.shortCode()).isEqualTo("abc1234");
         assertThat(response.originalUrl()).isEqualTo(originalUrl);
         assertThat(response.shortUrl()).isEqualTo("http://short.ly/abc1234");
         assertThat(response.createdAt()).isNotNull();
+        assertThat(response.expiresAt()).isNull();
         verify(shortUrlRepository).save(any(ShortUrl.class));
     }
 
@@ -64,7 +68,7 @@ class UrlShortenerServiceTest {
         when(shortUrlRepository.existsByShortCode("bbbbbbb")).thenReturn(false);
 
         CreateShortUrlResponse response =
-                urlShortenerService.createShortUrl(new CreateShortUrlRequest("https://example.com/retry"));
+                urlShortenerService.createShortUrl(new CreateShortUrlRequest("https://example.com/retry", null));
 
         assertThat(response.shortCode()).isEqualTo("bbbbbbb");
         verify(shortCodeGenerator, times(2)).generate();
@@ -77,10 +81,24 @@ class UrlShortenerServiceTest {
         when(shortUrlRepository.existsByShortCode("ccccccc")).thenReturn(true);
 
         assertThrows(ShortCodeGenerationException.class,
-                () -> urlShortenerService.createShortUrl(new CreateShortUrlRequest("https://example.com/fail")));
+                () -> urlShortenerService.createShortUrl(
+                        new CreateShortUrlRequest("https://example.com/fail", null)));
 
         verify(shortCodeGenerator, times(5)).generate();
         verify(shortUrlRepository, never()).save(any(ShortUrl.class));
+    }
+
+    @Test
+    void createShortUrlStoresAndReturnsExpiresAt() {
+        Instant expiresAt = Instant.now().plusSeconds(3600);
+        when(shortCodeGenerator.generate()).thenReturn("exp1234");
+        when(shortUrlRepository.existsByShortCode("exp1234")).thenReturn(false);
+
+        CreateShortUrlResponse response = urlShortenerService.createShortUrl(
+                new CreateShortUrlRequest("https://example.com/expiring", expiresAt));
+
+        assertThat(response.expiresAt()).isEqualTo(expiresAt);
+        verify(shortUrlRepository).save(any(ShortUrl.class));
     }
 
     @Test
@@ -95,12 +113,14 @@ class UrlShortenerServiceTest {
         ShortUrl shortUrl = mock(ShortUrl.class);
         Instant createdAt = Instant.parse("2026-01-01T00:00:00Z");
         Instant lastAccessedAt = Instant.parse("2026-01-02T00:00:00Z");
+        Instant expiresAt = Instant.parse("2026-02-01T00:00:00Z");
         when(shortUrl.getShortCode()).thenReturn("abc1234");
         when(shortUrl.getOriginalUrl()).thenReturn("https://example.com/page");
         when(shortUrl.getClickCount()).thenReturn(5L);
         when(shortUrl.getCreatedAt()).thenReturn(createdAt);
         when(shortUrl.getLastAccessedAt()).thenReturn(lastAccessedAt);
         when(shortUrl.isActive()).thenReturn(true);
+        when(shortUrl.getExpiresAt()).thenReturn(expiresAt);
         when(shortUrlRepository.findByShortCode("abc1234")).thenReturn(Optional.of(shortUrl));
 
         UrlAnalyticsResponse response = urlShortenerService.getAnalytics("abc1234");
@@ -111,5 +131,38 @@ class UrlShortenerServiceTest {
         assertThat(response.createdAt()).isEqualTo(createdAt);
         assertThat(response.lastAccessedAt()).isEqualTo(lastAccessedAt);
         assertThat(response.active()).isTrue();
+        assertThat(response.expiresAt()).isEqualTo(expiresAt);
+    }
+
+    @Test
+    void resolveOriginalUrlReturnsUrlForActiveNonExpiringShortCode() {
+        ShortUrl shortUrl = new ShortUrl("https://example.com/page", "abc1234", Instant.now());
+        when(shortUrlRepository.findByShortCode("abc1234")).thenReturn(Optional.of(shortUrl));
+
+        String originalUrl = urlShortenerService.resolveOriginalUrl("abc1234");
+
+        assertThat(originalUrl).isEqualTo("https://example.com/page");
+        verify(shortUrlRepository).incrementClickCount(eq("abc1234"), any(Instant.class));
+    }
+
+    @Test
+    void resolveOriginalUrlThrowsWhenShortCodeMissing() {
+        when(shortUrlRepository.findByShortCode("missing")).thenReturn(Optional.empty());
+
+        assertThrows(ShortUrlNotFoundException.class, () -> urlShortenerService.resolveOriginalUrl("missing"));
+
+        verify(shortUrlRepository, never()).incrementClickCount(any(), any());
+    }
+
+    @Test
+    void resolveOriginalUrlThrowsGoneAndDoesNotIncrementClickCountWhenExpired() {
+        Instant expiresAt = Instant.now().minusSeconds(60);
+        ShortUrl shortUrl = new ShortUrl("https://example.com/expired", "exp1234", Instant.now().minusSeconds(3600),
+                expiresAt);
+        when(shortUrlRepository.findByShortCode("exp1234")).thenReturn(Optional.of(shortUrl));
+
+        assertThrows(ShortUrlExpiredException.class, () -> urlShortenerService.resolveOriginalUrl("exp1234"));
+
+        verify(shortUrlRepository, never()).incrementClickCount(any(), any());
     }
 }

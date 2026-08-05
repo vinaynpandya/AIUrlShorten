@@ -26,6 +26,12 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage(), request.getRequestURI(), Map.of());
     }
 
+    @ExceptionHandler(ShortUrlExpiredException.class)
+    public ResponseEntity<ApiErrorResponse> handleShortUrlExpired(ShortUrlExpiredException ex,
+                                                                     HttpServletRequest request) {
+        return buildResponse(HttpStatus.GONE, ex.getMessage(), request.getRequestURI(), Map.of());
+    }
+
     @ExceptionHandler(ShortCodeGenerationException.class)
     public ResponseEntity<ApiErrorResponse> handleShortCodeGeneration(ShortCodeGenerationException ex,
                                                                         HttpServletRequest request) {

@@ -2,6 +2,8 @@ package com.assignment.urlshortener.integration;
 
 import com.assignment.urlshortener.dto.CreateShortUrlRequest;
 import com.assignment.urlshortener.dto.CreateShortUrlResponse;
+import com.assignment.urlshortener.entity.ShortUrl;
+import com.assignment.urlshortener.repository.ShortUrlRepository;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +14,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.time.Instant;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -28,19 +33,23 @@ class UrlShortenerIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private ShortUrlRepository shortUrlRepository;
+
     @Test
     void createShortUrlThenRedirectTracksClickCount() throws Exception {
         String originalUrl = "https://example.com/integration-test-page";
 
         MvcResult createResult = mockMvc.perform(post("/api/v1/urls")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new CreateShortUrlRequest(originalUrl))))
+                        .content(objectMapper.writeValueAsString(new CreateShortUrlRequest(originalUrl, null))))
                 .andExpect(status().isCreated())
                 .andReturn();
 
         CreateShortUrlResponse createResponse = objectMapper.readValue(
                 createResult.getResponse().getContentAsString(), CreateShortUrlResponse.class);
         String shortCode = createResponse.shortCode();
+        assertThat(createResponse.expiresAt()).isNull();
 
         mockMvc.perform(get("/{shortCode}", shortCode))
                 .andExpect(status().isFound())
@@ -63,5 +72,48 @@ class UrlShortenerIntegrationTest {
     void redirectWithUnknownShortCodeReturnsNotFound() throws Exception {
         mockMvc.perform(get("/{shortCode}", "zzzzzzz"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void createShortUrlWithFutureExpiresAtIsAcceptedAndReturned() throws Exception {
+        Instant expiresAt = Instant.now().plusSeconds(3600);
+
+        MvcResult createResult = mockMvc.perform(post("/api/v1/urls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new CreateShortUrlRequest("https://example.com/expiring-page", expiresAt))))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        CreateShortUrlResponse createResponse = objectMapper.readValue(
+                createResult.getResponse().getContentAsString(), CreateShortUrlResponse.class);
+
+        assertThat(createResponse.expiresAt()).isEqualTo(expiresAt);
+    }
+
+    @Test
+    void createShortUrlWithPastExpiresAtIsRejected() throws Exception {
+        Instant expiresAt = Instant.now().minusSeconds(60);
+
+        mockMvc.perform(post("/api/v1/urls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new CreateShortUrlRequest("https://example.com/already-expired", expiresAt))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void redirectWithExpiredShortCodeReturnsGoneAndDoesNotIncrementClickCount() throws Exception {
+        ShortUrl expiredShortUrl = new ShortUrl("https://example.com/expired-page", "exp0001",
+                Instant.now().minusSeconds(3600), Instant.now().minusSeconds(60));
+        shortUrlRepository.save(expiredShortUrl);
+
+        mockMvc.perform(get("/{shortCode}", "exp0001"))
+                .andExpect(status().isGone());
+
+        mockMvc.perform(get("/api/v1/urls/{shortCode}/analytics", "exp0001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.clickCount").value(0))
+                .andExpect(jsonPath("$.expiresAt").exists());
     }
 }

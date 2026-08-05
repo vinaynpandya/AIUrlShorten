@@ -8,6 +8,7 @@ public record UrlAnalyticsResponse(
         long clickCount,
         Instant createdAt,
         Instant lastAccessedAt,
-        boolean active
+        boolean active,
+        Instant expiresAt
 ) {
 }
