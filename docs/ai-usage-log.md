@@ -62,3 +62,49 @@ Claude Code assisted with:
 ### Status
 
 Completed.
+
+## Brownfield Scenario — URL Expiration
+
+### Original requirement
+
+Allow shortened URLs to expire.
+
+### Impact analysis
+
+The change affected the persisted URL model, API DTOs, redirect service,
+exception handling and regression tests.
+
+### Regression risks
+
+- Existing requests without expiration could stop working.
+- Expired redirects could incorrectly increment analytics.
+- Incorrect UTC handling could expire links too early or too late.
+- Expiration changes could alter existing response contracts.
+- Expired short codes could accidentally be reused.
+
+### AI contribution
+
+Claude assisted with impact analysis, implementation and regression-test
+generation.
+
+### Engineer oversight
+
+- Required optional expiration for backward compatibility.
+- Required UTC Instant timestamps.
+- Required expiration validation.
+- Required HTTP 410 Gone.
+- Required expiration checks before analytics updates.
+- Confirmed that codes are never recycled.
+
+### Validation
+
+- Existing non-expiring URLs continued working.
+- Future expiration was accepted.
+- Past expiration returned HTTP 400.
+- Expired redirect returned HTTP 410.
+- Expired redirect did not increase analytics.
+- Full regression suite passed.
+
+### Status
+
+Completed.
