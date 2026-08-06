@@ -13,7 +13,7 @@ already exists in `documents/`, `docs/`, or the codebase.
 | Architecture overview | `documents/01-architecture-and-design.md` (reformatted from `docs/01-engineering-design-and-architecture.md` — component diagram §3, data model §4, API design §5, request flow §7)
 | Greenfield scenario | `documents/03-scenarios-and-validation.md`, Scenario 1 (reformatted from `docs/03-scenarios-validation-and-risks.md` §2)
 | Brownfield scenario — expiration | `documents/03-scenarios-and-validation.md`, Scenario 2; `documents/01-architecture-and-design.md` §6 "Expiration" 
-| Brownfield scenario — soft-delete endpoint | `documents/03-scenarios-and-validation.md`, Scenario 3 | Documented |
+| Brownfield scenario — soft-delete endpoint | `documents/03-scenarios-and-validation.md`, Scenario 3
 | Ambiguous requirement scenario | `documents/03-scenarios-and-validation.md`, Scenario 4; `documents/02-ai-engineering-log.md` §5 "Decision Log" (row "Custom alias") 
 | Setup instructions | `documents/04-setup-instructions.md` (full file, identical copy of `docs/04-setup-instructions.md`) 
 | Testing, limitations, trade-offs | `documents/05-final-summary.md` §2 (Risks, Trade-Offs, and Assumptions), §3 (Quality Gates), §5 (Limitations); the per-class test-count breakdown table remains only in `docs/03-scenarios-validation-and-risks.md` §6 
