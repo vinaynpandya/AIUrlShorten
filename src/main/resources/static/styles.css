@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --color-bg: #f5f7fa;
   --color-surface: #ffffff;
   --color-border: #d9dee4;
@@ -86,6 +87,21 @@ body {
 .field input:focus {
   outline: 2px solid var(--color-primary);
   outline-offset: 1px;
+}
+
+.field input[type="datetime-local"] {
+  cursor: pointer;
+}
+
+.field input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  padding: 4px;
+  margin-left: 6px;
+  border-radius: 4px;
+}
+
+.field input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+  background-color: var(--color-bg);
 }
 
 .field-error {
@@ -217,6 +233,7 @@ body {
 
 @media (prefers-color-scheme: dark) {
   :root {
+    color-scheme: dark;
     --color-bg: #14181c;
     --color-surface: #1c2126;
     --color-border: #333b44;

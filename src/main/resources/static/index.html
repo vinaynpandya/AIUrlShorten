@@ -31,8 +31,12 @@
 
       <div class="field">
         <label for="expires-at">Expires at (optional)</label>
-        <input type="datetime-local" id="expires-at" name="expiresAt" />
+        <input type="datetime-local" id="expires-at" name="expiresAt"
+        />
         <p class="field-error" id="error-expiresAt"></p>
+        <small>
+          A complete date and time is required to set an expiration.
+        </small>
       </div>
 
       <button type="submit" class="btn-primary">Create Short URL</button>

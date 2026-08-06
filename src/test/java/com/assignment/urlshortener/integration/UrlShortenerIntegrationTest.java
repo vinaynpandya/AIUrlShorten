@@ -169,4 +169,60 @@ class UrlShortenerIntegrationTest {
                 .andExpect(jsonPath("$.clickCount").value(0))
                 .andExpect(jsonPath("$.expiresAt").exists());
     }
+
+    @Test
+    void createShortUrlWithSqlInjectionStyleOriginalUrlPersistsLiterallyAndDoesNotAffectOtherRecords()
+            throws Exception {
+        String maliciousUrl = "https://example.com/search?id=1'OR'1'='1';DROP;--";
+        long countBefore = shortUrlRepository.count();
+
+        MvcResult createResult = mockMvc.perform(post("/api/v1/urls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new CreateShortUrlRequest(maliciousUrl, null, null))))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        assertThat(shortUrlRepository.count()).isEqualTo(countBefore + 1);
+
+        CreateShortUrlResponse createResponse = objectMapper.readValue(
+                createResult.getResponse().getContentAsString(), CreateShortUrlResponse.class);
+        String shortCode = createResponse.shortCode();
+
+        ShortUrl stored = shortUrlRepository.findByShortCode(shortCode).orElseThrow();
+        assertThat(stored.getOriginalUrl()).isEqualTo(maliciousUrl);
+
+        mockMvc.perform(get("/{shortCode}", shortCode))
+                .andExpect(status().isFound())
+                .andExpect(header().string(HttpHeaders.LOCATION, maliciousUrl));
+
+        assertThat(shortUrlRepository.count()).isEqualTo(countBefore + 1);
+    }
+
+    @Test
+    void createShortUrlWithSqlInjectionStyleCustomAliasIsRejectedAndDoesNotAffectDatabase() throws Exception {
+        long countBefore = shortUrlRepository.count();
+
+        mockMvc.perform(post("/api/v1/urls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CreateShortUrlRequest(
+                                "https://example.com/page", null, "1;DROP TABLE short_urls;--"))))
+                .andExpect(status().isBadRequest());
+
+        assertThat(shortUrlRepository.count()).isEqualTo(countBefore);
+    }
+
+    @Test
+    void redirectWithSqlInjectionStyleShortCodePathReturnsNotFoundWithoutAffectingDatabase() throws Exception {
+        long countBefore = shortUrlRepository.count();
+
+        MvcResult result = mockMvc.perform(get("/{shortCode}", "1' OR '1'='1"))
+                .andExpect(status().isNotFound())
+                .andReturn();
+
+        String body = result.getResponse().getContentAsString();
+        assertThat(body).doesNotContainIgnoringCase("sql");
+        assertThat(body).doesNotContain("org.h2", "org.hibernate", "at com.assignment", "Caused by");
+        assertThat(shortUrlRepository.count()).isEqualTo(countBefore);
+    }
 }
