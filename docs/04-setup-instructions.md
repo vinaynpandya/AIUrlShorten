@@ -1,107 +1,154 @@
 # Setup Instructions
 
-## 1. Prerequisites
+The README provides a project overview. This document contains the complete
+installation, execution, validation, and troubleshooting steps.
 
-The project requires:
+## 1. Execution Options
 
-- Java 17
-- Git
-- Docker Desktop
-- Docker Compose
-- `curl`
-- IntelliJ IDEA or another Java IDE
+| Option | Use case | Requirements |
+|---|---|---|
+| **Standalone Docker image** | Quick functional review | Docker |
+| **Full scalable Docker stack** | Review PostgreSQL, Redis, app1, app2, and NGINX | Docker and Git |
+| **Local development** | Modify or debug the source code | Java 17 and Git |
 
-The project includes the Maven Wrapper, so a separate Maven installation is
-not required.
+---
 
-Verify the tools:
+## 2. Option 1 — Standalone Docker Image
 
-```bash
-java -version
-docker --version
-docker compose version
-docker info
-```
+This option runs one Spring Boot container with the default H2 profile.
 
-## 2. Run the automated tests
+It supports URL creation, redirects, aliases, expiration, analytics, and the
+browser interface. It does not include PostgreSQL, Redis, NGINX, `app1`, or
+`app2`.
 
-From the repository root, run:
+No repository clone or `.env` file is required.
+
+### macOS/Linux
 
 ```bash
-chmod +x mvnw
-./mvnw clean test
+docker pull aditiv0401/ai-assisted-url-shortener:1.0.0
+
+docker run -d \
+  --name url-shortener \
+  -p 8080:8080 \
+  -e APP_BASE_URL=http://localhost:8080 \
+  -e INSTANCE_NAME=standalone \
+  aditiv0401/ai-assisted-url-shortener:1.0.0
 ```
 
-The expected final result is:
+### Windows PowerShell
 
-```text
-BUILD SUCCESS
+```powershell
+docker pull aditiv0401/ai-assisted-url-shortener:1.0.0
+
+docker run -d `
+  --name url-shortener `
+  -p 8080:8080 `
+  -e APP_BASE_URL=http://localhost:8080 `
+  -e INSTANCE_NAME=standalone `
+  aditiv0401/ai-assisted-url-shortener:1.0.0
 ```
 
-## 3. Run the default local profile
-
-The default profile uses H2 and `NoOpRedirectCache`.
-
-Start the application:
-
-```bash
-./mvnw spring-boot:run
-```
-
-Open the browser interface:
+Open:
 
 ```text
 http://localhost:8080
 ```
 
-Check health:
+Health check:
 
 ```bash
 curl -i http://localhost:8080/actuator/health
 ```
 
-The response should include:
+Windows PowerShell:
 
-```text
-X-App-Instance: local-instance
+```powershell
+Invoke-RestMethod http://localhost:8080/actuator/health
 ```
 
-Stop the application with `Control+C`.
-
-## 4. Run the scalable Docker profile
-
-Copy the environment template:
+Stop:
 
 ```bash
-cp .env.example .env
+docker stop url-shortener
+docker rm url-shortener
 ```
 
-Do not commit `.env`. Confirm that `.gitignore` contains:
+---
+
+## 3. Option 2 — Full Scalable Docker Stack
+
+This option starts:
 
 ```text
-.env
+PostgreSQL
+Redis
+Spring Boot app1
+Spring Boot app2
+NGINX
 ```
 
-The scalable application properties use these environment variables:
+The repository is required because `compose.release.yml` uses the included
+NGINX configuration.
 
-```text
-DB_URL
-DB_USERNAME
-DB_PASSWORD
-APP_BASE_URL
-INSTANCE_NAME
-REDIS_HOST
-REDIS_PORT
-```
-
-Validate the Compose configuration:
+### Clone the repository
 
 ```bash
-docker compose config
-docker compose config --services
+git clone https://github.com/aditi040306/ai-assisted-url-shortener.git
+cd ai-assisted-url-shortener
 ```
 
-The expected services are:
+### macOS/Linux
+
+Set local demonstration credentials:
+
+```bash
+export DB_USERNAME=urlshortener
+export DB_PASSWORD=urlshortener_demo
+```
+
+Start:
+
+```bash
+docker compose \
+  -p url-shortener \
+  -f compose.release.yml \
+  up -d
+```
+
+### Windows PowerShell
+
+Set local demonstration credentials:
+
+```powershell
+$env:DB_USERNAME="urlshortener"
+$env:DB_PASSWORD="urlshortener_demo"
+```
+
+Start:
+
+```powershell
+docker compose `
+  -p url-shortener `
+  -f .\compose.release.yml `
+  up -d
+```
+
+### Check status
+
+macOS/Linux:
+
+```bash
+docker compose -p url-shortener -f compose.release.yml ps
+```
+
+Windows PowerShell:
+
+```powershell
+docker compose -p url-shortener -f .\compose.release.yml ps
+```
+
+Expected services:
 
 ```text
 postgres
@@ -111,39 +158,112 @@ app2
 nginx
 ```
 
-Start the full stack:
-
-```bash
-docker compose down -v --remove-orphans
-docker compose up --build -d
-docker compose ps
-```
-
-The public endpoint is:
+Open:
 
 ```text
 http://localhost:8080
 ```
 
-The direct diagnostic endpoints are expected to be:
+View logs:
 
-```text
-http://localhost:8081
-http://localhost:8082
+macOS/Linux:
+
+```bash
+docker compose -p url-shortener -f compose.release.yml \
+  logs -f app1 app2 nginx
 ```
 
-## 5. Use the browser interface
+Windows PowerShell:
+
+```powershell
+docker compose -p url-shortener -f .\compose.release.yml `
+  logs -f app1 app2 nginx
+```
+
+Stop:
+
+macOS/Linux:
+
+```bash
+docker compose -p url-shortener -f compose.release.yml down
+```
+
+Windows PowerShell:
+
+```powershell
+docker compose -p url-shortener -f .\compose.release.yml down
+```
+
+Use `down -v` to also remove PostgreSQL and Redis volumes.
+
+> The credentials above are local demonstration values. Do not use real
+> production credentials directly in shell commands.
+
+---
+
+## 4. Option 3 — Local Development
+
+### Prerequisites
+
+- Java 17
+- Git
+- IntelliJ IDEA or another Java IDE
+
+The Maven Wrapper is included, so Maven does not need to be installed
+separately.
+
+### Run tests
+
+macOS/Linux:
+
+```bash
+chmod +x mvnw
+./mvnw clean test
+```
+
+Windows PowerShell:
+
+```powershell
+.\mvnw.cmd clean test
+```
+
+Expected result:
+
+```text
+BUILD SUCCESS
+```
+
+### Start the H2 profile
+
+macOS/Linux:
+
+```bash
+./mvnw spring-boot:run
+```
+
+Windows PowerShell:
+
+```powershell
+.\mvnw.cmd spring-boot:run
+```
 
 Open:
 
 ```text
-http://localhost:8080/
+http://localhost:8080
 ```
 
-The interface supports URL creation, custom aliases, expiration, analytics,
-copy/open actions, and service health.
+Stop with `Control+C`.
 
-## 6. Create a short URL
+---
+
+## 5. Validate the Application
+
+The following tests work with all three execution options.
+
+### Create a short URL
+
+macOS/Linux:
 
 ```bash
 curl -i -X POST http://localhost:8080/api/v1/urls \
@@ -151,7 +271,15 @@ curl -i -X POST http://localhost:8080/api/v1/urls \
   -d '{"originalUrl":"https://example.com/setup-test"}'
 ```
 
-The expected status is:
+Windows PowerShell:
+
+```powershell
+curl.exe -i -X POST http://localhost:8080/api/v1/urls `
+  -H "Content-Type: application/json" `
+  -d "{\"originalUrl\":\"https://example.com/setup-test\"}"
+```
+
+Expected status:
 
 ```text
 HTTP/1.1 201
@@ -159,33 +287,41 @@ HTTP/1.1 201
 
 Copy the returned `shortCode`.
 
-## 7. Test redirect
+### Test the redirect
 
 ```bash
 curl -i http://localhost:8080/YOUR_CODE
 ```
 
-The expected result is:
+Expected result:
 
 ```text
 HTTP/1.1 302
 Location: https://example.com/setup-test
 ```
 
-## 8. Test analytics
+### Test aggregate analytics
 
 ```bash
-curl -i \
-  http://localhost:8080/api/v1/urls/YOUR_CODE/analytics
+curl -i http://localhost:8080/api/v1/urls/YOUR_CODE/analytics
 ```
 
-The expected status is:
+Expected status:
 
 ```text
 HTTP/1.1 200
 ```
 
-## 9. Test a custom alias
+### Test detailed analytics
+
+```bash
+curl -i http://localhost:8080/api/v1/urls/YOUR_CODE/click-analytics
+```
+
+Detailed events are asynchronous, so the response may briefly lag behind the
+aggregate click count.
+
+### Test a custom alias
 
 ```bash
 curl -i -X POST http://localhost:8080/api/v1/urls \
@@ -196,15 +332,23 @@ curl -i -X POST http://localhost:8080/api/v1/urls \
   }'
 ```
 
-The expected returned `shortCode` is:
+Expected returned short code:
 
 ```text
 my_link
 ```
 
-A second request using `my_link` should return `409 Conflict`.
+A second request using the same alias should return `409 Conflict`.
 
-## 10. Verify request distribution
+---
+
+## 6. Validate the Scalable Stack
+
+These checks apply only to Option 2.
+
+### Verify request distribution
+
+macOS/Linux:
 
 ```bash
 for i in {1..10}; do
@@ -213,84 +357,47 @@ for i in {1..10}; do
 done
 ```
 
-Repeated responses should show both:
+Windows PowerShell:
+
+```powershell
+1..10 | ForEach-Object {
+  curl.exe -s -D - http://localhost:8080/actuator/health -o NUL |
+    Select-String "X-App-Instance"
+}
+```
+
+Responses should include both:
 
 ```text
 X-App-Instance: app1
 X-App-Instance: app2
 ```
 
-## 11. Verify shared persistence
+### Inspect Redis
 
-Create a mapping directly through one application instance:
-
-```bash
-curl -i -X POST http://localhost:8081/api/v1/urls \
-  -H "Content-Type: application/json" \
-  -d '{"originalUrl":"https://example.com/shared-state"}'
-```
-
-Resolve the returned code through the second instance:
+macOS/Linux:
 
 ```bash
-curl -i http://localhost:8082/YOUR_CODE
+docker compose -p url-shortener -f compose.release.yml \
+  exec redis redis-cli GET redirect:YOUR_CODE
 ```
 
-The expected result is `302 Found`.
+Windows PowerShell:
 
-## 12. Inspect Redis
-
-After a successful redirect, inspect the mapping:
-
-```bash
-docker compose exec redis redis-cli GET redirect:YOUR_CODE
+```powershell
+docker compose -p url-shortener -f .\compose.release.yml `
+  exec redis redis-cli GET redirect:YOUR_CODE
 ```
 
-The expected value is the original URL.
+The expected value is the original URL after a successful redirect.
 
-## 13. Verify Redis fallback
+---
 
-```bash
-docker compose stop redis
-curl -i http://localhost:8080/YOUR_CODE
-docker compose start redis
-```
-
-A valid database-backed URL should continue to redirect. Retain the terminal
-output before marking this test as completed.
-
-## 14. Verify application-instance failover
-
-```bash
-docker compose stop app1
-curl -i http://localhost:8080/actuator/health
-curl -i http://localhost:8080/YOUR_CODE
-docker compose start app1
-```
-
-Retain the output before describing this test as passed.
-
-## 15. View logs
-
-```bash
-docker compose logs --tail=100 postgres
-docker compose logs --tail=100 redis
-docker compose logs --tail=100 app1
-docker compose logs --tail=100 app2
-docker compose logs --tail=100 nginx
-```
-
-Follow all logs:
-
-```bash
-docker compose logs -f
-```
-
-## 16. Troubleshooting
+## 7. Troubleshooting
 
 ### Docker is not running
 
-Start Docker Desktop and wait until this command succeeds:
+Start Docker Desktop and wait until this succeeds:
 
 ```bash
 docker info
@@ -298,61 +405,64 @@ docker info
 
 ### Port 8080 is already in use
 
+macOS/Linux:
+
 ```bash
 lsof -nP -iTCP:8080 -sTCP:LISTEN
-kill <PID>
 ```
 
-### Environment variables are missing
+Windows PowerShell:
 
-```bash
-cp .env.example .env
-docker compose config
+```powershell
+Get-NetTCPConnection -LocalPort 8080
 ```
 
 ### A container exits
 
-```bash
-docker compose ps -a
-docker compose logs --tail=100 SERVICE_NAME
-```
-
-### A clean restart is required
+macOS/Linux:
 
 ```bash
-docker compose down -v --remove-orphans
-docker compose up --build -d
+docker compose -p url-shortener -f compose.release.yml ps -a
+docker compose -p url-shortener -f compose.release.yml \
+  logs --tail=100 SERVICE_NAME
 ```
 
-## 17. Stop the environment
+Windows PowerShell:
 
-Stop containers while retaining volumes:
+```powershell
+docker compose -p url-shortener -f .\compose.release.yml ps -a
+docker compose -p url-shortener -f .\compose.release.yml `
+  logs --tail=100 SERVICE_NAME
+```
+
+### Clean scalable-stack restart
+
+macOS/Linux:
 
 ```bash
-docker compose down
+docker compose -p url-shortener -f compose.release.yml down -v
+docker compose -p url-shortener -f compose.release.yml up -d
 ```
 
-Stop containers and remove volumes:
+Windows PowerShell:
 
-```bash
-docker compose down -v
+```powershell
+docker compose -p url-shortener -f .\compose.release.yml down -v
+docker compose -p url-shortener -f .\compose.release.yml up -d
 ```
 
-## 18. Final submission checks
+---
 
-```bash
-./mvnw clean test
-git status --short
-```
+## 8. Final Submission Checks
 
 Confirm that:
 
-- the Maven test suite passes;
-- all five Docker services start;
-- creation, redirect, and analytics work;
-- both `app1` and `app2` appear in response headers;
-- `.env` is ignored;
-- `.env.example` is tracked;
-- the architecture images are present;
-- all documentation links work;
-- the Git working tree is clean.
+- The Maven test suite passes.
+- The standalone Docker image starts without cloning the repository.
+- URL creation, redirect, and analytics work.
+- All five services start in the full scalable stack.
+- Both `app1` and `app2` appear in response headers.
+- `.env` is not committed if one is created locally.
+- `.env.example` is tracked.
+- Documentation links work.
+- The Git working tree is clean.
