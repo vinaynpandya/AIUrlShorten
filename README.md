@@ -1,6 +1,6 @@
-# URL Shortener
+# AI Assisted URL Shortener
 
-A Java 17 and Spring Boot application that converts a long HTTP or HTTPS URL
+A Java, Spring Boot based application that converts a long HTTP or HTTPS URL
 into a short, shareable URL and redirects the short URL to the original
 destination.
 
@@ -398,3 +398,8 @@ Complete macOS, Linux, and Windows instructions are available in
 - Architecture and AI-assisted engineering documentation
 - Greenfield, brownfield, and ambiguous-requirement scenarios
 - Automated tests and k6 performance-test assets
+
+
+## Author 
+
+Aditi Verma
