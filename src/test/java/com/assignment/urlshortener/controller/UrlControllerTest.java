@@ -1,8 +1,10 @@
 package com.assignment.urlshortener.controller;
 
+import com.assignment.urlshortener.dto.ClickAnalyticsResponse;
 import com.assignment.urlshortener.dto.CreateShortUrlResponse;
 import com.assignment.urlshortener.exception.CustomAliasConflictException;
 import com.assignment.urlshortener.exception.ShortUrlNotFoundException;
+import com.assignment.urlshortener.service.ClickAnalyticsService;
 import com.assignment.urlshortener.service.UrlShortenerService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -29,6 +32,9 @@ class UrlControllerTest {
 
     @MockitoBean
     private UrlShortenerService urlShortenerService;
+
+    @MockitoBean
+    private ClickAnalyticsService clickAnalyticsService;
 
     @Test
     void createShortUrlWithValidRequestReturnsCreated() throws Exception {
@@ -89,6 +95,34 @@ class UrlControllerTest {
         when(urlShortenerService.getAnalytics(anyString())).thenThrow(new ShortUrlNotFoundException("missing"));
 
         mockMvc.perform(get("/api/v1/urls/{shortCode}/analytics", "missing"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void createShortUrlWithMalformedExpiresAtReturnsBadRequestNotServerError() throws Exception {
+        mockMvc.perform(post("/api/v1/urls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"originalUrl\":\"https://example.com/page\",\"expiresAt\":\"not-a-date\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.expiresAt").exists());
+    }
+
+    @Test
+    void getClickAnalyticsReturnsBreakdown() throws Exception {
+        when(clickAnalyticsService.getClickAnalytics("abc1234")).thenReturn(
+                new ClickAnalyticsResponse("abc1234", 3L, Map.of("Chrome", 3L)));
+
+        mockMvc.perform(get("/api/v1/urls/{shortCode}/click-analytics", "abc1234"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalEvents").value(3))
+                .andExpect(jsonPath("$.byBrowser.Chrome").value(3));
+    }
+
+    @Test
+    void getClickAnalyticsWithUnknownShortCodeReturnsNotFound() throws Exception {
+        when(clickAnalyticsService.getClickAnalytics("missing")).thenThrow(new ShortUrlNotFoundException("missing"));
+
+        mockMvc.perform(get("/api/v1/urls/{shortCode}/click-analytics", "missing"))
                 .andExpect(status().isNotFound());
     }
 }

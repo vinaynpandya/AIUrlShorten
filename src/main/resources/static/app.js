@@ -186,6 +186,70 @@
     }
   });
 
+  // Click analytics
+  var clickAnalyticsForm = document.getElementById("click-analytics-form");
+  var clickAnalyticsMessage = document.getElementById("click-analytics-message");
+  var clickAnalyticsResult = document.getElementById("click-analytics-result");
+
+  function renderBreakdown(listEl, breakdown) {
+    listEl.innerHTML = "";
+    var entries = Object.keys(breakdown || {});
+    if (entries.length === 0) {
+      var emptyItem = document.createElement("li");
+      emptyItem.className = "breakdown-empty";
+      emptyItem.textContent = "No data yet.";
+      listEl.appendChild(emptyItem);
+      return;
+    }
+    entries.sort(function (a, b) {
+      return breakdown[b] - breakdown[a];
+    });
+    entries.forEach(function (key) {
+      var item = document.createElement("li");
+      item.className = "breakdown-item";
+      var nameSpan = document.createElement("span");
+      nameSpan.textContent = key;
+      var countSpan = document.createElement("span");
+      countSpan.className = "breakdown-count";
+      countSpan.textContent = String(breakdown[key]);
+      item.appendChild(nameSpan);
+      item.appendChild(countSpan);
+      listEl.appendChild(item);
+    });
+  }
+
+  clickAnalyticsForm.addEventListener("submit", async function (event) {
+    event.preventDefault();
+    setFormMessage(clickAnalyticsMessage, "", null);
+    clickAnalyticsResult.hidden = true;
+
+    var shortCode = document.getElementById("click-analytics-short-code").value.trim();
+    if (!shortCode) {
+      setFormMessage(clickAnalyticsMessage, "Please enter a short code.", "error");
+      return;
+    }
+
+    try {
+      var response = await fetch("/api/v1/urls/" + encodeURIComponent(shortCode) + "/click-analytics");
+
+      if (!response.ok) {
+        var errorBody = await parseJsonSafe(response);
+        applyApiError(clickAnalyticsMessage, null, response.status, errorBody);
+        return;
+      }
+
+      var data = await response.json();
+
+      document.getElementById("click-analytics-totalEvents").textContent = String(data.totalEvents);
+      renderBreakdown(document.getElementById("click-analytics-byBrowser"), data.byBrowser);
+
+      clickAnalyticsResult.hidden = false;
+      setFormMessage(clickAnalyticsMessage, "", null);
+    } catch (err) {
+      setFormMessage(clickAnalyticsMessage, "Network error while fetching click analytics.", "error");
+    }
+  });
+
   // Health check
   var healthButton = document.getElementById("health-check-button");
   var healthMessage = document.getElementById("health-message");

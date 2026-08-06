@@ -1,8 +1,10 @@
 package com.assignment.urlshortener.controller;
 
+import com.assignment.urlshortener.dto.ClickAnalyticsResponse;
 import com.assignment.urlshortener.dto.CreateShortUrlRequest;
 import com.assignment.urlshortener.dto.CreateShortUrlResponse;
 import com.assignment.urlshortener.dto.UrlAnalyticsResponse;
+import com.assignment.urlshortener.service.ClickAnalyticsService;
 import com.assignment.urlshortener.service.UrlShortenerService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -19,9 +21,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class UrlController {
 
     private final UrlShortenerService urlShortenerService;
+    private final ClickAnalyticsService clickAnalyticsService;
 
-    public UrlController(UrlShortenerService urlShortenerService) {
+    public UrlController(UrlShortenerService urlShortenerService, ClickAnalyticsService clickAnalyticsService) {
         this.urlShortenerService = urlShortenerService;
+        this.clickAnalyticsService = clickAnalyticsService;
     }
 
     @PostMapping
@@ -33,6 +37,12 @@ public class UrlController {
     @GetMapping("/{shortCode}/analytics")
     public ResponseEntity<UrlAnalyticsResponse> getAnalytics(@PathVariable String shortCode) {
         UrlAnalyticsResponse response = urlShortenerService.getAnalytics(shortCode);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{shortCode}/click-analytics")
+    public ResponseEntity<ClickAnalyticsResponse> getClickAnalytics(@PathVariable String shortCode) {
+        ClickAnalyticsResponse response = clickAnalyticsService.getClickAnalytics(shortCode);
         return ResponseEntity.ok(response);
     }
 }

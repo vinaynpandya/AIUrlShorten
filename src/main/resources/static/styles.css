@@ -176,6 +176,45 @@ body {
   font-size: 0.95rem;
 }
 
+.breakdown {
+  margin-top: 12px;
+}
+
+.breakdown h4 {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.breakdown-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.breakdown-item,
+.breakdown-empty {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  background-color: var(--color-bg);
+  font-size: 0.9rem;
+}
+
+.breakdown-empty {
+  color: var(--color-text-muted);
+  justify-content: flex-start;
+}
+
+.breakdown-count {
+  font-weight: 600;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --color-bg: #14181c;

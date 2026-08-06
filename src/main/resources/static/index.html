@@ -99,6 +99,31 @@
     </div>
   </section>
 
+  <section class="card" aria-labelledby="click-analytics-heading">
+    <h2 id="click-analytics-heading">Click Analytics</h2>
+    <p class="subtitle">Browser breakdown from detailed click events.</p>
+    <form id="click-analytics-form" novalidate>
+      <div class="field">
+        <label for="click-analytics-short-code">Short Code</label>
+        <input type="text" id="click-analytics-short-code" name="shortCode" placeholder="abc123" required />
+      </div>
+      <button type="submit" class="btn-primary">View Click Analytics</button>
+    </form>
+
+    <p class="form-message" id="click-analytics-message" role="alert"></p>
+
+    <div class="result-panel" id="click-analytics-result" hidden>
+      <div class="result-row">
+        <span class="result-label">Total Events</span>
+        <span class="result-value" id="click-analytics-totalEvents"></span>
+      </div>
+      <div class="breakdown">
+        <h4>By Browser</h4>
+        <ul class="breakdown-list" id="click-analytics-byBrowser"></ul>
+      </div>
+    </div>
+  </section>
+
   <section class="card" aria-labelledby="health-heading">
     <h2 id="health-heading">Service Health</h2>
     <button type="button" class="btn-primary" id="health-check-button">Check Health</button>

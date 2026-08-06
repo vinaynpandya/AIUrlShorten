@@ -1,11 +1,13 @@
 package com.assignment.urlshortener.exception;
 
 import com.assignment.urlshortener.dto.ApiErrorResponse;
+import tools.jackson.databind.exc.InvalidFormatException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -43,6 +45,21 @@ public class GlobalExceptionHandler {
                                                                         HttpServletRequest request) {
         log.error("Short code generation failed for request {}", request.getRequestURI(), ex);
         return buildResponse(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), request.getRequestURI(), Map.of());
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiErrorResponse> handleMalformedRequestBody(HttpMessageNotReadableException ex,
+                                                                          HttpServletRequest request) {
+        Map<String, String> fieldErrors = new LinkedHashMap<>();
+        Throwable cause = ex.getCause();
+        if (cause instanceof InvalidFormatException invalidFormatException
+                && !invalidFormatException.getPath().isEmpty()) {
+            String field = invalidFormatException.getPath().get(invalidFormatException.getPath().size() - 1)
+                    .getPropertyName();
+            fieldErrors.put(field, "must be a well-formed value (for example, expiresAt must be an ISO-8601 "
+                    + "date-time such as 2026-01-01T00:00:00Z)");
+        }
+        return buildResponse(HttpStatus.BAD_REQUEST, "Malformed request body", request.getRequestURI(), fieldErrors);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
