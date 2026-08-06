@@ -7,6 +7,7 @@ import com.assignment.urlshortener.dto.UrlAnalyticsResponse;
 import com.assignment.urlshortener.entity.ShortUrl;
 import com.assignment.urlshortener.exception.CustomAliasConflictException;
 import com.assignment.urlshortener.exception.ShortCodeGenerationException;
+import com.assignment.urlshortener.exception.ShortUrlAlreadyInactiveException;
 import com.assignment.urlshortener.exception.ShortUrlExpiredException;
 import com.assignment.urlshortener.exception.ShortUrlNotFoundException;
 import com.assignment.urlshortener.repository.ShortUrlRepository;
@@ -264,5 +265,41 @@ class UrlShortenerServiceTest {
         verify(redirectCache).evict("stale456");
         verify(redirectCache, never()).put(any(), any(), any());
         verify(shortUrlRepository, times(1)).incrementClickCount(eq("stale456"), any(Instant.class));
+    }
+
+    @Test
+    void deactivateShortUrlSucceedsForActiveShortCode() {
+        ShortUrl shortUrl = new ShortUrl("https://example.com/page", "abc1234", Instant.now());
+        when(shortUrlRepository.findByShortCode("abc1234")).thenReturn(Optional.of(shortUrl));
+
+        urlShortenerService.deactivateShortUrl("abc1234");
+
+        assertThat(shortUrl.isActive()).isFalse();
+        verify(shortUrlRepository).save(shortUrl);
+        verify(redirectCache).evict("abc1234");
+    }
+
+    @Test
+    void deactivateShortUrlThrowsNotFoundWhenShortCodeMissing() {
+        when(shortUrlRepository.findByShortCode("missing")).thenReturn(Optional.empty());
+
+        assertThrows(ShortUrlNotFoundException.class,
+                () -> urlShortenerService.deactivateShortUrl("missing"));
+
+        verify(shortUrlRepository, never()).save(any());
+        verify(redirectCache, never()).evict(any());
+    }
+
+    @Test
+    void deactivateShortUrlThrowsWhenAlreadyInactive() {
+        ShortUrl shortUrl = new ShortUrl("https://example.com/page", "inactive1", Instant.now());
+        shortUrl.deactivate();
+        when(shortUrlRepository.findByShortCode("inactive1")).thenReturn(Optional.of(shortUrl));
+
+        assertThrows(ShortUrlAlreadyInactiveException.class,
+                () -> urlShortenerService.deactivateShortUrl("inactive1"));
+
+        verify(shortUrlRepository, never()).save(any());
+        verify(redirectCache, never()).evict(any());
     }
 }

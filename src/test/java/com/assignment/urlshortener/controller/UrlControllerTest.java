@@ -18,7 +18,10 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -123,6 +126,22 @@ class UrlControllerTest {
         when(clickAnalyticsService.getClickAnalytics("missing")).thenThrow(new ShortUrlNotFoundException("missing"));
 
         mockMvc.perform(get("/api/v1/urls/{shortCode}/click-analytics", "missing"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deactivateShortUrlReturnsNoContent() throws Exception {
+        mockMvc.perform(delete("/api/v1/urls/{shortCode}", "abc1234"))
+                .andExpect(status().isNoContent());
+
+        verify(urlShortenerService).deactivateShortUrl("abc1234");
+    }
+
+    @Test
+    void deactivateShortUrlWithUnknownShortCodeReturnsNotFound() throws Exception {
+        doThrow(new ShortUrlNotFoundException("missing")).when(urlShortenerService).deactivateShortUrl("missing");
+
+        mockMvc.perform(delete("/api/v1/urls/{shortCode}", "missing"))
                 .andExpect(status().isNotFound());
     }
 }

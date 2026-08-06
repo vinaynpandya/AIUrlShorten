@@ -229,7 +229,7 @@ replication, or a production availability percentage.
 
 ## 6. Automated test strategy
 
-The supplied source contains 37 `@Test` methods in six test classes.
+The supplied source contains 76 `@Test` methods in eleven test classes.
 
 | Test class | Test count | Main purpose |
 |---|---:|---|

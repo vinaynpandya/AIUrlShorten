@@ -7,6 +7,7 @@ import com.assignment.urlshortener.dto.UrlAnalyticsResponse;
 import com.assignment.urlshortener.entity.ShortUrl;
 import com.assignment.urlshortener.exception.CustomAliasConflictException;
 import com.assignment.urlshortener.exception.ShortCodeGenerationException;
+import com.assignment.urlshortener.exception.ShortUrlAlreadyInactiveException;
 import com.assignment.urlshortener.exception.ShortUrlExpiredException;
 import com.assignment.urlshortener.exception.ShortUrlNotFoundException;
 import com.assignment.urlshortener.repository.ShortUrlRepository;
@@ -113,6 +114,26 @@ public class UrlShortenerService {
                 shortUrl.isActive(),
                 shortUrl.getExpiresAt()
         );
+    }
+
+    @Transactional
+    public void deactivateShortUrl(String shortCode) {
+        ShortUrl shortUrl = shortUrlRepository.findByShortCode(shortCode)
+                .orElseThrow(() -> {
+                    log.warn("Short code not found: {}", shortCode);
+                    return new ShortUrlNotFoundException(shortCode);
+                });
+
+        if (!shortUrl.isActive()) {
+            log.warn("Short code already inactive: {}", shortCode);
+            throw new ShortUrlAlreadyInactiveException(shortCode);
+        }
+
+        shortUrl.deactivate();
+        shortUrlRepository.save(shortUrl);
+        redirectCache.evict(shortCode);
+
+        log.info("Deactivated short URL with code {}", shortCode);
     }
 
     private String reserveCustomAlias(String alias) {

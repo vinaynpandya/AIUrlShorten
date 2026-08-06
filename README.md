@@ -71,6 +71,7 @@ public short code.
 - Support optional expiration
 - Redirect through HTTP `302 Found`
 - Return HTTP `410 Gone` for expired links
+- Deactivate a short URL through a soft-delete endpoint
 - Track click count and last-accessed time
 - Record detailed click events asynchronously
 - Provide browser-based click analytics
@@ -199,6 +200,15 @@ GET /api/v1/urls/{shortCode}/click-analytics
 Returns detailed event totals and browser breakdown. Detailed events are
 persisted asynchronously, so this endpoint is eventually consistent.
 
+### Deactivate a Short URL
+
+```http
+DELETE /api/v1/urls/{shortCode}
+```
+
+Successful deactivation returns HTTP `204 No Content`. The short code is
+evicted from the cache and stops resolving on redirect.
+
 ### Health
 
 ```http
@@ -322,18 +332,6 @@ A successful full 1,000-user benchmark is not claimed.
   persistence for multiple application instances.
 - **HTTP 302 redirects:** retains control over analytics and expiration rather
   than encouraging permanent client caching.
-
-## Current Scope and Limitations
-
-- No authentication, authorization, or link ownership
-- No rate limiting or abuse prevention
-- No update or delete APIs
-- No custom domains
-- No cleanup scheduler
-- No durable analytics queue
-- No Flyway or Liquibase migrations
-- No replicated or multi-region infrastructure
-- No completed 1,000-user benchmark result
 
 ## Project Structure
 

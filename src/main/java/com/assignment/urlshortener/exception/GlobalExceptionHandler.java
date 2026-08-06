@@ -41,6 +41,12 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage(), request.getRequestURI(), Map.of());
     }
 
+    @ExceptionHandler(ShortUrlAlreadyInactiveException.class)
+    public ResponseEntity<ApiErrorResponse> handleShortUrlAlreadyInactive(ShortUrlAlreadyInactiveException ex,
+                                                                             HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, ex.getMessage(), request.getRequestURI(), Map.of());
+    }
+
     @ExceptionHandler(ShortCodeGenerationException.class)
     public ResponseEntity<ApiErrorResponse> handleShortCodeGeneration(ShortCodeGenerationException ex,
                                                                         HttpServletRequest request) {

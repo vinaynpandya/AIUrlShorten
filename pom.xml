@@ -134,6 +134,41 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>3.6.0</version>
+                <configuration>
+                    <failOnViolation>false</failOnViolation>
+                    <consoleOutput>true</consoleOutput>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>checkstyle-report-only</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <version>4.10.3.0</version>
+                <configuration>
+                    <failOnError>false</failOnError>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>spotbugs-report-only</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 
