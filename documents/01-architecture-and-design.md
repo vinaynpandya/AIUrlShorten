@@ -4,7 +4,7 @@ This file covers components, control flow, and design mechanisms.
 
 ## 1. Overview
 
-A Java 17, Spring Boot URL shortener that evolved from a single-instance
+A Java, Spring Boot URL shortener that evolved from a single-instance
 greenfield service into a Docker-based system with shared persistence,
 Redis caching, two application instances, NGINX routing, analytics, and
 automated testing.
