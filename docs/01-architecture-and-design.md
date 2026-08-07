@@ -1,8 +1,6 @@
 # Architecture and Design
 
-Reformatted and tightened from `docs/01-engineering-design-and-architecture.md`.
-This file covers components, control flow, and design mechanisms only — for
-risks, trade-offs, and limitations, see `documents/05-final-summary.md`.
+This file covers components, control flow, and design mechanisms.
 
 ## 1. Overview
 
@@ -10,6 +8,30 @@ A Java 17, Spring Boot URL shortener that evolved from a single-instance
 greenfield service into a Docker-based system with shared persistence,
 Redis caching, two application instances, NGINX routing, analytics, and
 automated testing.
+
+```mermaid
+flowchart LR
+    Client["Browser or API Client"] --> NGINX["NGINX :8080"]
+    NGINX --> App1["Spring Boot app1"]
+    NGINX --> App2["Spring Boot app2"]
+    App1 --> Redis[("Redis")]
+    App2 --> Redis
+    App1 --> PostgreSQL[("PostgreSQL")]
+    App2 --> PostgreSQL
+    App1 --> ClickRecorder["Async Click Recorder"]
+    App2 --> ClickRecorder
+    ClickRecorder --> PostgreSQL
+```
+
+### Index
+1. [Overview](#1-overview)
+2. [Scope](#2-scope)
+3. [Architecture Deep Dive](#3-architecture-deep-dive)
+4. [Data Model](#4-data-model)
+5. [API Design](#5-api-design)
+6. [Core Design Mechanisms](#6-core-design-mechanisms)
+7. [Main Request Flow](#7-main-request-flow)
+8. [Architecture Evolution](#8-architecture-evolution)
 
 ## 2. Scope
 
@@ -31,14 +53,24 @@ automated testing.
 - Docker Compose startup
 - Unit, controller, integration, security, and k6 test assets
 
-### Out of scope
-- Authentication and authorization
-- User ownership
-- Multi-region deployment
-- Production secret management
-- Durable message-queue delivery
+### Future scope
+- Authentication and authorization — introduce Spring Security with
+  JWT or OAuth2 (e.g. Keycloak or an external IdP) to authenticate API
+  clients and gate mutating endpoints.
+- User ownership — add a `users` table and an `ownerId` foreign key on
+  `ShortUrl`, scoping create/read/analytics endpoints to the
+  authenticated user.
+- Multi-region deployment — replicate PostgreSQL (e.g. read replicas or
+  a multi-region managed database) and front regional NGINX/app
+  clusters with a global load balancer or DNS-based routing.
+- Production secret management — externalize credentials to a secrets
+  manager (e.g. HashiCorp Vault, AWS Secrets Manager) and inject them
+  via environment variables at container startup instead of config files.
+- Durable message-queue delivery — replace the `@Async` click-event
+  path with a durable broker (e.g. Kafka or RabbitMQ) so event
+  persistence survives instance restarts and can be retried.
 
-## 3. Architecture
+## 3. Architecture Deep Dive
 
 ```mermaid
 flowchart LR
@@ -49,6 +81,9 @@ flowchart LR
     App2 --> Redis
     App1 --> PostgreSQL[("PostgreSQL")]
     App2 --> PostgreSQL
+    App1 --> ClickRecorder["Async Click Recorder"]
+    App2 --> ClickRecorder
+    ClickRecorder --> PostgreSQL
 ```
 
 The application instances are stateless and share PostgreSQL and Redis.
@@ -168,7 +203,8 @@ GET /api/v1/urls/{shortCode}/analytics
 ```
 
 The response includes original URL, click count, creation time, last
-access, active state, and expiration.
+access, active state, expiration, and a browser breakdown derived from
+captured click events.
 
 ### Errors
 
@@ -286,17 +322,23 @@ is eventually consistent.
 
 ## 8. Architecture Evolution
 
-| Stage | Decision |
-|---|---|
-| Greenfield core | Spring Boot, JPA, H2 |
-| Uniqueness | Base62, retries, unique constraint |
-| Analytics | Atomic repository update |
-| Expiration | Optional `Instant expiresAt` |
-| Custom aliases | Validation and reservation rules |
-| Browser UI | Static HTML, CSS, JavaScript |
-| Shared persistence | PostgreSQL |
-| Redirect caching | Redis cache-aside |
-| Horizontal execution | app1 and app2 |
-| Single entry point | NGINX |
-| Reproducibility | Docker Compose |
-| Detailed analytics | Asynchronous `ClickEvent` persistence |
+The core service began with a greenfield design; every stage after it was
+delivered as brownfield work — enhancements and refactors layered onto
+the existing, already-running system.
+
+| Stage | Decision | Type |
+|---|---|---|
+| Design — Greenfield Core | Spring Boot, JPA, H2 | Greenfield |
+| Uniqueness | Base62, retries, unique constraint | Brownfield |
+| Analytics | Atomic repository update | Brownfield |
+| Expiration | Optional `Instant expiresAt` | Brownfield |
+| Custom aliases | Validation and reservation rules | Brownfield |
+| Browser UI | Static HTML, CSS, JavaScript | Brownfield |
+| Shared persistence | PostgreSQL | Brownfield |
+| Redirect caching | Redis cache-aside | Brownfield |
+| Horizontal execution | app1 and app2 | Brownfield |
+| Single entry point | NGINX | Brownfield |
+| Reproducibility | Docker Compose | Brownfield |
+| Detailed analytics | Asynchronous `ClickEvent` persistence | Brownfield |
+| Test coverage | Unit, controller, integration, security, and k6 test assets | Testing |
+| Requirement clarification | Expiration, alias rules, and error-status decisions resolved from ambiguous requirements | Ambiguous requirement |

@@ -1,9 +1,11 @@
 # Scenarios and Validation
 
-Reformatted from `docs/03-scenarios-validation-and-risks.md` §2–4, with one
-new scenario (soft-delete) documented from the current code and tests. No
-scenario, requirement, or feature described here goes beyond what exists in
-`docs/03-scenarios-validation-and-risks.md` or the current codebase.
+## Scope
+
+Each scenario states the requirement, how it was decomposed into
+implementation work, what was executed, and the tests that validate it.
+Every scenario, requirement, and feature described here reflects only what
+exists in the current codebase.
 
 ## Scenario 1 — Greenfield: core shortener
 
