@@ -132,8 +132,8 @@ docker info
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/aditi040306/ai-assisted-url-shortener.git
-cd ai-assisted-url-shortener
+git clone https://github.com/vinaynpandya/AIUrlShorten.git
+cd AIUrlShorten
 ```
 
 ### macOS/Linux
