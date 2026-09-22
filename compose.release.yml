@@ -34,7 +34,7 @@ services:
       - url-shortener-net
 
   app1:
-    image: aditiv0401/ai-assisted-url-shortener:1.0.0
+    image: vinaynpandya/ai-assisted-url-shortener:1.0.0
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: scalable
@@ -68,7 +68,7 @@ services:
       - url-shortener-net
 
   app2:
-    image: aditiv0401/ai-assisted-url-shortener:1.0.0
+    image: vinaynpandya/ai-assisted-url-shortener:1.0.0
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: scalable

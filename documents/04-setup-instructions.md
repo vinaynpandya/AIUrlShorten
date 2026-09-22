@@ -31,7 +31,7 @@ standalone application as `UP`.
 ### macOS/Linux
 
 ```bash
-docker pull aditiv0401/ai-assisted-url-shortener:1.0.0
+docker pull vinaynpandya/ai-assisted-url-shortener:1.0.0
 
 docker run -d \
   --name url-shortener \
@@ -39,13 +39,13 @@ docker run -d \
   -e APP_BASE_URL=http://localhost:8080 \
   -e INSTANCE_NAME=standalone \
   -e MANAGEMENT_HEALTH_REDIS_ENABLED=false \
-  aditiv0401/ai-assisted-url-shortener:1.0.0
+  vinaynpandya/ai-assisted-url-shortener:1.0.0
 ```
 
 ### Windows PowerShell
 
 ```powershell
-docker pull aditiv0401/ai-assisted-url-shortener:1.0.0
+docker pull vinaynpandya/ai-assisted-url-shortener:1.0.0
 
 docker run -d `
   --name url-shortener `
@@ -53,7 +53,7 @@ docker run -d `
   -e APP_BASE_URL=http://localhost:8080 `
   -e INSTANCE_NAME=standalone `
   -e MANAGEMENT_HEALTH_REDIS_ENABLED=false `
-  aditiv0401/ai-assisted-url-shortener:1.0.0
+  vinaynpandya/ai-assisted-url-shortener:1.0.0
 ```
 
 ### Verify
